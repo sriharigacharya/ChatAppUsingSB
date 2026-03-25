@@ -12,8 +12,8 @@ COPY src src
 # Make gradlew executable
 RUN chmod +x gradlew
 
-# Build the application
-RUN ./gradlew bootJar -x test --no-daemon --no-watch-fs
+# Build the application (with constrained memory for Render free tier)
+RUN ./gradlew bootJar -x test --no-daemon --no-watch-fs --max-workers=1 -Dorg.gradle.jvmargs="-Xmx300m"
 
 # Package Stage
 FROM eclipse-temurin:17-jre-alpine
