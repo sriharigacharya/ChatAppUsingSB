@@ -1,5 +1,5 @@
 # Build Stage
-FROM gradle:8-jdk17 AS builder
+FROM eclipse-temurin:17-jdk-alpine AS builder
 WORKDIR /app
 
 # Copy the Gradle artifacts and source code
