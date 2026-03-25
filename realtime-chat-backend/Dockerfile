@@ -13,7 +13,7 @@ COPY src src
 RUN chmod +x gradlew
 
 # Build the application
-RUN ./gradlew bootJar -x test
+RUN ./gradlew bootJar -x test --no-daemon --no-watch-fs
 
 # Package Stage
 FROM eclipse-temurin:17-jre-alpine
