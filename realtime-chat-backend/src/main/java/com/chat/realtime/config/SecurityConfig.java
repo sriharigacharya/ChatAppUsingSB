@@ -34,6 +34,7 @@ public class SecurityConfig {
             }))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**").permitAll()
+                .requestMatchers("/api/messages/**").permitAll() // Chat history API
                 .requestMatchers("/ws/**").permitAll() // WebSockets
                 .anyRequest().authenticated()
             );

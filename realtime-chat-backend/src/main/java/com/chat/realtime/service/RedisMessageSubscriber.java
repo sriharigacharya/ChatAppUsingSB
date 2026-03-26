@@ -22,9 +22,9 @@ public class RedisMessageSubscriber {
             
             // Forward the message to the specific user via STOMP SimpleBroker
             // The Android client sublimely subscribes to /user/{myId}/queue/messages
-            messagingTemplate.convertAndSendToUser(
-                    String.valueOf(chatMessage.getRecipientId()),
-                    "/queue/messages",
+            // Since there's no JWT Principal, we bypass the user registry and send directly to the literal topic:
+            messagingTemplate.convertAndSend(
+                    "/user/" + chatMessage.getRecipientId() + "/queue/messages",
                     chatMessage
             );
         } catch (Exception e) {
