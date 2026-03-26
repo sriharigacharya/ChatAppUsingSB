@@ -20,11 +20,12 @@ public class RedisMessageSubscriber {
             ChatMessageDto chatMessage = objectMapper.readValue(message, ChatMessageDto.class);
             log.info("Received message from Redis topic: {}", chatMessage.getContent());
             
-            // Forward the message to the specific user via STOMP SimpleBroker
-            // The Android client sublimely subscribes to /user/{myId}/queue/messages
-            // Since there's no JWT Principal, we bypass the user registry and send directly to the literal topic:
+            // By default, Spring intercepts any destination starting with "/user/" and tries to 
+            // resolve it to a specific authenticated session. Since Android clients don't authenticate 
+            // the WebSocket (no Principal), it silently drops those messages.
+            // Bypassing it entirely by using a standard /topic route.
             messagingTemplate.convertAndSend(
-                    "/user/" + chatMessage.getRecipientId() + "/queue/messages",
+                    "/topic/messages/" + chatMessage.getRecipientId(),
                     chatMessage
             );
         } catch (Exception e) {
