@@ -13,6 +13,9 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.math.BigInteger;
+import java.security.interfaces.RSAPublicKey;
+import java.security.interfaces.RSAPrivateKey;
 
 import javax.crypto.Cipher;
 
@@ -100,18 +103,63 @@ public class CryptoManager {
      * @param recipientPublicKeyBase64 Recipient's public key (Base64-encoded X.509)
      * @return Base64-encoded ciphertext, or null on failure
      */
+//    public String encrypt(String plaintext, String recipientPublicKeyBase64) {
+//        try {
+//            byte[] pubBytes = Base64.decode(recipientPublicKeyBase64, Base64.NO_WRAP);
+//            KeyFactory kf = KeyFactory.getInstance(RSA_ALGORITHM);
+//            PublicKey recipientKey = kf.generatePublic(new X509EncodedKeySpec(pubBytes));
+//
+//            Cipher cipher = Cipher.getInstance(RSA_TRANSFORMATION);
+//            cipher.init(Cipher.ENCRYPT_MODE, recipientKey);
+//            byte[] encrypted = cipher.doFinal(plaintext.getBytes(StandardCharsets.UTF_8));
+//            return Base64.encodeToString(encrypted, Base64.NO_WRAP);
+//        } catch (Exception e) {
+//            Log.e(TAG, "Encryption failed", e);
+//            return null;
+//        }
+//    }
     public String encrypt(String plaintext, String recipientPublicKeyBase64) {
         try {
-            byte[] pubBytes = Base64.decode(recipientPublicKeyBase64, Base64.NO_WRAP);
-            KeyFactory kf = KeyFactory.getInstance(RSA_ALGORITHM);
-            PublicKey recipientKey = kf.generatePublic(new X509EncodedKeySpec(pubBytes));
 
-            Cipher cipher = Cipher.getInstance(RSA_TRANSFORMATION);
-            cipher.init(Cipher.ENCRYPT_MODE, recipientKey);
-            byte[] encrypted = cipher.doFinal(plaintext.getBytes(StandardCharsets.UTF_8));
-            return Base64.encodeToString(encrypted, Base64.NO_WRAP);
-        } catch (Exception e) {
-            Log.e(TAG, "Encryption failed", e);
+            byte[] pubBytes = Base64.decode(recipientPublicKeyBase64, Base64.NO_WRAP);
+
+            KeyFactory kf = KeyFactory.getInstance(RSA_ALGORITHM);
+            PublicKey recipientKey =
+                    kf.generatePublic(new X509EncodedKeySpec(pubBytes));
+
+            RSAPublicKey rsaPublicKey = (RSAPublicKey) recipientKey;
+
+            BigInteger e = rsaPublicKey.getPublicExponent();
+            BigInteger n = rsaPublicKey.getModulus();
+
+            BigInteger m = new BigInteger(
+                    1,
+                    plaintext.getBytes(StandardCharsets.UTF_8)
+            );
+
+            if (m.compareTo(n) >= 0) {
+                Log.e(TAG, "Message too large for RSA modulus");
+                return null;
+            }
+
+            BigInteger c = m.modPow(e, n);
+
+            Log.d(TAG, "========== RSA ENCRYPTION ==========");
+            Log.d(TAG, "Plaintext = " + plaintext);
+            Log.d(TAG, "M = " + m);
+            Log.d(TAG, "e = " + e);
+            Log.d(TAG, "n = " + n);
+            Log.d(TAG, "C = M^e mod n");
+            Log.d(TAG, "Ciphertext = " + c);
+            Log.d(TAG, "===================================");
+
+            return Base64.encodeToString(
+                    c.toByteArray(),
+                    Base64.NO_WRAP
+            );
+
+        } catch (Exception ex) {
+            Log.e(TAG, "Encryption failed", ex);
             return null;
         }
     }
@@ -122,15 +170,53 @@ public class CryptoManager {
      * @param ciphertextBase64 Base64-encoded ciphertext
      * @return Decrypted plaintext, or "[Decryption failed]" on error
      */
+//    public String decrypt(String ciphertextBase64) {
+//        try {
+//            byte[] encrypted = Base64.decode(ciphertextBase64, Base64.NO_WRAP);
+//            Cipher cipher = Cipher.getInstance(RSA_TRANSFORMATION);
+//            cipher.init(Cipher.DECRYPT_MODE, privateKey);
+//            byte[] decrypted = cipher.doFinal(encrypted);
+//            return new String(decrypted, StandardCharsets.UTF_8);
+//        } catch (Exception e) {
+//            Log.e(TAG, "Decryption failed", e);
+//            return "[Decryption failed]";
+//        }
+//    }
     public String decrypt(String ciphertextBase64) {
         try {
-            byte[] encrypted = Base64.decode(ciphertextBase64, Base64.NO_WRAP);
-            Cipher cipher = Cipher.getInstance(RSA_TRANSFORMATION);
-            cipher.init(Cipher.DECRYPT_MODE, privateKey);
-            byte[] decrypted = cipher.doFinal(encrypted);
-            return new String(decrypted, StandardCharsets.UTF_8);
-        } catch (Exception e) {
-            Log.e(TAG, "Decryption failed", e);
+
+            byte[] cipherBytes =
+                    Base64.decode(ciphertextBase64, Base64.NO_WRAP);
+
+            BigInteger c = new BigInteger(1, cipherBytes);
+
+            RSAPrivateKey rsaPrivateKey =
+                    (RSAPrivateKey) privateKey;
+
+            BigInteger d = rsaPrivateKey.getPrivateExponent();
+            BigInteger n = rsaPrivateKey.getModulus();
+
+            BigInteger m = c.modPow(d, n);
+
+            String plaintext =
+                    new String(
+                            m.toByteArray(),
+                            StandardCharsets.UTF_8
+                    );
+
+            Log.d(TAG, "========== RSA DECRYPTION ==========");
+            Log.d(TAG, "Ciphertext = " + c);
+            Log.d(TAG, "d = " + d);
+            Log.d(TAG, "n = " + n);
+            Log.d(TAG, "M = C^d mod n");
+            Log.d(TAG, "Recovered M = " + m);
+            Log.d(TAG, "Plaintext = " + plaintext);
+            Log.d(TAG, "===================================");
+
+            return plaintext;
+
+        } catch (Exception ex) {
+            Log.e(TAG, "Decryption failed", ex);
             return "[Decryption failed]";
         }
     }
