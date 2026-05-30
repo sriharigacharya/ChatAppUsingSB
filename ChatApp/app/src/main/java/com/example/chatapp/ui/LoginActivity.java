@@ -33,13 +33,14 @@ public class LoginActivity extends AppCompatActivity {
         sessionManager = new SessionManager(this);
         apiService = ApiClient.getApiService(this);
 
-        if (sessionManager.fetchAuthToken() != null) {
+        // No JWT — check if user is already logged in via saved userId
+        if (sessionManager.getUserId() != null) {
             startActivity(new Intent(this, MainActivity.class));
             finish();
         }
 
         binding.btnLogin.setOnClickListener(v -> loginUser());
-        
+
         binding.tvRegister.setOnClickListener(v -> {
             startActivity(new Intent(LoginActivity.this, RegisterActivity.class));
         });
@@ -55,20 +56,22 @@ public class LoginActivity extends AppCompatActivity {
         }
 
         binding.btnLogin.setEnabled(false);
+        Toast.makeText(this, "Connecting to server… this may take up to 60s on first launch", Toast.LENGTH_LONG).show();
         apiService.login(new AuthRequest(username, password)).enqueue(new Callback<AuthResponse>() {
             @Override
             public void onResponse(Call<AuthResponse> call, Response<AuthResponse> response) {
                 binding.btnLogin.setEnabled(true);
                 if (response.isSuccessful() && response.body() != null) {
                     AuthResponse authResponse = response.body();
-                    sessionManager.saveAuthToken(authResponse.getToken());
-                    sessionManager.saveUserDetails(authResponse.getUser().getId(), authResponse.getUser().getUsername());
-                    
-                    Toast.makeText(LoginActivity.this, "Login Successful", Toast.LENGTH_SHORT).show();
+                    // Backend returns {id, username} — no JWT token
+                    sessionManager.saveUserDetails(String.valueOf(authResponse.getId()), authResponse.getUsername());
+
+                    Toast.makeText(LoginActivity.this, "Welcome, " + authResponse.getUsername(), Toast.LENGTH_SHORT).show();
                     startActivity(new Intent(LoginActivity.this, MainActivity.class));
                     finish();
                 } else {
-                    Toast.makeText(LoginActivity.this, "Login failed: " + response.code(), Toast.LENGTH_SHORT).show();
+                    String msg = response.code() == 401 ? "Invalid username or password" : "Login failed: " + response.code();
+                    Toast.makeText(LoginActivity.this, msg, Toast.LENGTH_SHORT).show();
                 }
             }
 

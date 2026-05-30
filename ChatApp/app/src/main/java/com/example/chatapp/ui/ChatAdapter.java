@@ -65,9 +65,10 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ChatViewHolder
 
         public void bind(ChatMessage message) {
             tvMessageContent.setText(message.getContent());
-            tvTime.setText(message.getTimestamp() != null ? message.getTimestamp() : "");
+            tvTime.setText(message.getCreatedAt() != null ? message.getCreatedAt() : "");
 
-            boolean isSentByMe = currentUserId.equals(message.getSenderId());
+            boolean isSentByMe = message.getSenderId() != null &&
+                    message.getSenderId().equals(Long.parseLong(currentUserId));
             
             // Layout params to align left or right
             LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) llMessageContainer.getLayoutParams();

@@ -2,6 +2,8 @@ package com.example.chatapp.api;
 
 import android.content.Context;
 
+import java.util.concurrent.TimeUnit;
+
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import retrofit2.Retrofit;
@@ -9,7 +11,7 @@ import retrofit2.converter.gson.GsonConverterFactory;
 
 public class ApiClient {
     // Updated to the computer's Wi-Fi IP for physical device debugging
-    public static final String BASE_URL = "http://10.0.2.2:8080";
+    public static final String BASE_URL = "https://chatappusingsbv2.onrender.com";
     private static Retrofit retrofit = null;
 
     public static ApiService getApiService(Context context) {
@@ -17,6 +19,9 @@ public class ApiClient {
             SessionManager sessionManager = new SessionManager(context);
             
             OkHttpClient client = new OkHttpClient.Builder()
+                .connectTimeout(90, TimeUnit.SECONDS)
+                .readTimeout(90, TimeUnit.SECONDS)
+                .writeTimeout(90, TimeUnit.SECONDS)
                 .addInterceptor(chain -> {
                     Request.Builder requestBuilder = chain.request().newBuilder();
                     String token = sessionManager.fetchAuthToken();

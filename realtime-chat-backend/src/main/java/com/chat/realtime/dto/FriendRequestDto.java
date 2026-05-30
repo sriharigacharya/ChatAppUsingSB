@@ -1,6 +1,5 @@
 package com.chat.realtime.dto;
 
-import com.chat.realtime.model.ChatMessage;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -11,12 +10,14 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ChatMessageDto {
+public class FriendRequestDto {
     private Long id;
     private Long senderId;
     private Long recipientId;
-    private String content;
-    private String senderContent;
-    private ChatMessage.MessageStatus status;
+    private String senderUsername;
+    private String recipientUsername;
+    private String senderPublicKey;
+    private String recipientPublicKey;
+    private String status;
     private LocalDateTime createdAt;
 }

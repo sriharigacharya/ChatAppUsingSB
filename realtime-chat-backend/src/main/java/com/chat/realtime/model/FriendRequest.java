@@ -5,13 +5,13 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "messages")
+@Table(name = "friend_requests")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ChatMessage {
+public class FriendRequest {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -19,18 +19,18 @@ public class ChatMessage {
     private Long senderId;
     private Long recipientId;
 
-    @Column(nullable = false, columnDefinition = "TEXT")
-    private String content;
+    @Column(columnDefinition = "TEXT")
+    private String senderPublicKey;
 
     @Column(columnDefinition = "TEXT")
-    private String senderContent;
+    private String recipientPublicKey;
 
     @Enumerated(EnumType.STRING)
-    private MessageStatus status;
+    private Status status;
 
     private LocalDateTime createdAt;
 
-    public enum MessageStatus {
-        SENT, DELIVERED, READ
+    public enum Status {
+        PENDING, ACCEPTED, REJECTED
     }
 }

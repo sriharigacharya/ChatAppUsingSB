@@ -26,6 +26,7 @@ public class ChatMessageService {
                 .senderId(chatMessageDto.getSenderId())
                 .recipientId(chatMessageDto.getRecipientId())
                 .content(chatMessageDto.getContent())
+                .senderContent(chatMessageDto.getSenderContent())
                 .status(ChatMessage.MessageStatus.SENT)
                 .createdAt(LocalDateTime.now())
                 .build();
@@ -82,6 +83,7 @@ public class ChatMessageService {
                 .senderId(msg.getSenderId())
                 .recipientId(msg.getRecipientId())
                 .content(msg.getContent())
+                .senderContent(msg.getSenderContent())
                 .status(msg.getStatus())
                 .createdAt(msg.getCreatedAt())
                 .build()
