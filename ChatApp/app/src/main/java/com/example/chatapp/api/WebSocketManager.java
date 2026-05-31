@@ -186,6 +186,7 @@ public class WebSocketManager implements StompClient.StompListener {
     public void onClosed() {
         Log.d(TAG, "WebSocket closed");
         isConnected = false;
+        stompClient = null;
         notifyDisconnected();
     }
 

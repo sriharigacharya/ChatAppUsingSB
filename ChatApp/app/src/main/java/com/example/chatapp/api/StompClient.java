@@ -93,8 +93,9 @@ public class StompClient extends WebSocketListener {
                 
                 String destination = "";
                 for (String header : headers.split("\n")) {
-                    if (header.startsWith("destination:")) {
-                        destination = header.substring("destination:".length());
+                    String trimmed = header.trim();
+                    if (trimmed.startsWith("destination:")) {
+                        destination = trimmed.substring("destination:".length()).trim();
                         break;
                     }
                 }
