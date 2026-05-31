@@ -42,7 +42,7 @@ public class WebSocketEventListener {
             
             // Broadcast status change to global channel
             userRepository.findByUsername(username).ifPresent(user -> {
-                messagingTemplate.convertAndSend("/topic/status", Map.of(
+                messagingTemplate.convertAndSend("/topic/status", (Object) Map.of(
                     "userId", user.getId(),
                     "status", "ONLINE"
                 ));
@@ -56,7 +56,7 @@ public class WebSocketEventListener {
                 userService.updateUserStatus(user.getName(), User.Status.ONLINE);
                 
                 userRepository.findByUsername(user.getName()).ifPresent(u -> {
-                    messagingTemplate.convertAndSend("/topic/status", Map.of(
+                    messagingTemplate.convertAndSend("/topic/status", (Object) Map.of(
                         "userId", u.getId(),
                         "status", "ONLINE"
                     ));
@@ -81,7 +81,7 @@ public class WebSocketEventListener {
             
             // Broadcast status change to global channel
             userRepository.findByUsername(username).ifPresent(user -> {
-                messagingTemplate.convertAndSend("/topic/status", Map.of(
+                messagingTemplate.convertAndSend("/topic/status", (Object) Map.of(
                     "userId", user.getId(),
                     "status", "OFFLINE"
                 ));
@@ -94,7 +94,7 @@ public class WebSocketEventListener {
                 userService.updateUserStatus(user.getName(), User.Status.OFFLINE);
                 
                 userRepository.findByUsername(user.getName()).ifPresent(u -> {
-                    messagingTemplate.convertAndSend("/topic/status", Map.of(
+                    messagingTemplate.convertAndSend("/topic/status", (Object) Map.of(
                         "userId", u.getId(),
                         "status", "OFFLINE"
                     ));
