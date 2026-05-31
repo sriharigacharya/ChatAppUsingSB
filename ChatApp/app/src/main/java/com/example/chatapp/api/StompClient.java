@@ -14,6 +14,7 @@ public class StompClient extends WebSocketListener {
     private WebSocket webSocket;
     private final String url;
     private final String token;
+    private final String username;
     private StompListener listener;
     
     public interface StompListener {
@@ -23,8 +24,13 @@ public class StompClient extends WebSocketListener {
     }
 
     public StompClient(String url, String token, StompListener listener) {
+        this(url, token, null, listener);
+    }
+
+    public StompClient(String url, String token, String username, StompListener listener) {
         this.url = url;
         this.token = token;
+        this.username = username;
         this.listener = listener;
     }
 
@@ -65,6 +71,9 @@ public class StompClient extends WebSocketListener {
                 "heart-beat:10000,10000\n";
         if (token != null) {
             connectFrame += "Authorization:Bearer " + token + "\n";
+        }
+        if (username != null) {
+            connectFrame += "username:" + username + "\n";
         }
         connectFrame += "\n\0";
         webSocket.send(connectFrame);

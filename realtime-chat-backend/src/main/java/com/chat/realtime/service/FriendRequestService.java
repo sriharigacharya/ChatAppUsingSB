@@ -20,6 +20,7 @@ public class FriendRequestService {
 
     private final FriendRequestRepository friendRequestRepository;
     private final UserRepository userRepository;
+    private final UserStatusService userStatusService;
 
     public FriendRequestDto sendRequest(Long senderId, Long recipientId, String senderPublicKey) {
         userRepository.findById(senderId)
@@ -127,11 +128,16 @@ public class FriendRequestService {
                         friendPublicKey = request.getSenderPublicKey();
                     }
 
-                    String friendUsername = userRepository.findById(friendId)
-                            .map(User::getUsername).orElse("");
+                    User friend = userRepository.findById(friendId).orElse(null);
+                    if (friend == null) return null;
 
-                    return new FriendInfo(friendId, friendUsername, friendPublicKey);
+                    boolean isOnline = userStatusService.isUserOnline(friend.getUsername());
+                    String status = isOnline ? "ONLINE" : "OFFLINE";
+                    String lastSeenStr = friend.getLastSeen() != null ? friend.getLastSeen().toString() : null;
+
+                    return new FriendInfo(friendId, friend.getUsername(), friendPublicKey, status, lastSeenStr);
                 })
+                .filter(friendInfo -> friendInfo != null)
                 .collect(Collectors.toList());
     }
 
@@ -151,6 +157,8 @@ public class FriendRequestService {
         private Long id;
         private String username;
         private String publicKey;
+        private String status;
+        private String lastSeen;
     }
 
     @Data

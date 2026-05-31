@@ -126,7 +126,7 @@ public class ChatActivity extends AppCompatActivity implements StompClient.Stomp
 
     private void setupWebSocket() {
         String wsUrl = ApiClient.BASE_URL;
-        stompClient = new StompClient(wsUrl, sessionManager.fetchAuthToken(), this);
+        stompClient = new StompClient(wsUrl, sessionManager.fetchAuthToken(), sessionManager.getUsername(), this);
         stompClient.connect();
     }
 
