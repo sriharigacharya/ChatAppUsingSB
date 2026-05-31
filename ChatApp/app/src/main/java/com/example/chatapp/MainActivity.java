@@ -20,6 +20,7 @@ import com.example.chatapp.ui.FriendRequestsActivity;
 import com.example.chatapp.ui.LoginActivity;
 import com.example.chatapp.ui.SearchUsersActivity;
 import com.example.chatapp.ui.UserAdapter;
+import com.example.chatapp.api.WebSocketManager;
 
 import java.util.List;
 
@@ -34,6 +35,14 @@ public class MainActivity extends AppCompatActivity {
     private SessionManager sessionManager;
     private CryptoManager cryptoManager;
     private UserAdapter userAdapter;
+    private final WebSocketManager.StatusListener statusListener = new WebSocketManager.StatusListener() {
+        @Override
+        public void onStatusUpdated(Long userId, String status) {
+            if (userAdapter != null) {
+                userAdapter.updateUserStatus(userId, status);
+            }
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -57,12 +66,15 @@ public class MainActivity extends AppCompatActivity {
         cryptoManager = new CryptoManager(this); // Generate/load RSA keypair on launch
 
         setupRecyclerView();
+        WebSocketManager.getInstance().registerStatusListener(statusListener);
+        WebSocketManager.getInstance().connect(this);
     }
 
     @Override
     protected void onResume() {
         super.onResume();
         fetchFriends(); // Refresh friends list whenever returning from another activity
+        WebSocketManager.getInstance().connect(this);
     }
 
     private void setupRecyclerView() {
@@ -97,6 +109,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        WebSocketManager.getInstance().unregisterStatusListener(statusListener);
+    }
+
+    @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         menu.add(0, 1, 0, "Search Users");
         menu.add(0, 2, 1, "Friend Requests");
@@ -114,6 +132,7 @@ public class MainActivity extends AppCompatActivity {
                 startActivity(new Intent(this, FriendRequestsActivity.class));
                 return true;
             case 3:
+                WebSocketManager.getInstance().disconnect();
                 sessionManager.clearSession();
                 startActivity(new Intent(this, LoginActivity.class));
                 finish();

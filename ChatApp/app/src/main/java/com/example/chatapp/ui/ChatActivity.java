@@ -14,7 +14,7 @@ import com.example.chatapp.api.ApiClient;
 import com.example.chatapp.api.ApiService;
 import com.example.chatapp.api.CryptoManager;
 import com.example.chatapp.api.SessionManager;
-import com.example.chatapp.api.StompClient;
+import com.example.chatapp.api.WebSocketManager;
 import com.example.chatapp.databinding.ActivityChatBinding;
 import com.example.chatapp.models.ChatMessage;
 import com.google.gson.Gson;
@@ -26,7 +26,7 @@ import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 
-public class ChatActivity extends AppCompatActivity implements StompClient.StompListener {
+public class ChatActivity extends AppCompatActivity implements WebSocketManager.MessageListener {
 
     private ActivityChatBinding binding;
     private ChatAdapter chatAdapter;
@@ -38,7 +38,6 @@ public class ChatActivity extends AppCompatActivity implements StompClient.Stomp
     private ApiService apiService;
     private SessionManager sessionManager;
     private CryptoManager cryptoManager;
-    private StompClient stompClient;
     private Gson gson;
     private Handler mainHandler;
 
@@ -72,6 +71,7 @@ public class ChatActivity extends AppCompatActivity implements StompClient.Stomp
         setupRecyclerView();
         fetchChatHistory();
         setupWebSocket();
+        WebSocketManager.getInstance().registerMessageListener(this);
 
         binding.btnSend.setOnClickListener(v -> sendMessage());
     }
@@ -125,9 +125,7 @@ public class ChatActivity extends AppCompatActivity implements StompClient.Stomp
     }
 
     private void setupWebSocket() {
-        String wsUrl = ApiClient.BASE_URL;
-        stompClient = new StompClient(wsUrl, sessionManager.fetchAuthToken(), sessionManager.getUsername(), this);
-        stompClient.connect();
+        WebSocketManager.getInstance().connect(this);
     }
 
     private void sendMessage() {
@@ -153,7 +151,7 @@ public class ChatActivity extends AppCompatActivity implements StompClient.Stomp
         message.setSenderContent(encryptedForSender);
         String json = gson.toJson(message);
 
-        stompClient.send("/app/chat", json);
+        WebSocketManager.getInstance().send("/app/chat", json);
         binding.etMessage.setText("");
 
         // Optimistically add the PLAINTEXT message for immediate display
@@ -163,43 +161,24 @@ public class ChatActivity extends AppCompatActivity implements StompClient.Stomp
     }
 
     @Override
-    public void onConnected() {
-        Log.d("ChatActivity", "STOMP Connected");
-        // Subscribe to literal topic queue
-        stompClient.subscribe("/topic/messages/" + currentUserId, "sub-0");
-    }
-
-    @Override
-    public void onMessageReceived(String destination, String messageStr) {
-        Log.d("ChatActivity", "Message received: " + messageStr);
-        ChatMessage msg = gson.fromJson(messageStr, ChatMessage.class);
-
-        mainHandler.post(() -> {
-            if (msg.getSenderId() != null && msg.getSenderId().equals(Long.parseLong(recipientId))) {
-                // Decrypt the content using my private key
-                try {
-                    String decrypted = cryptoManager.decrypt(msg.getContent());
-                    msg.setContent(decrypted);
-                } catch (Exception e) {
-                    Log.e("ChatActivity", "Failed to decrypt incoming message", e);
-                    msg.setContent("[Decryption failed]");
-                }
-                chatAdapter.addMessage(msg);
-                binding.rvMessages.scrollToPosition(chatAdapter.getItemCount() - 1);
+    public void onMessageReceived(ChatMessage msg) {
+        if (msg.getSenderId() != null && msg.getSenderId().equals(Long.parseLong(recipientId))) {
+            // Decrypt the content using my private key
+            try {
+                String decrypted = cryptoManager.decrypt(msg.getContent());
+                msg.setContent(decrypted);
+            } catch (Exception e) {
+                Log.e("ChatActivity", "Failed to decrypt incoming message", e);
+                msg.setContent("[Decryption failed]");
             }
-        });
-    }
-
-    @Override
-    public void onClosed() {
-        Log.d("ChatActivity", "STOMP Closed");
+            chatAdapter.addMessage(msg);
+            binding.rvMessages.scrollToPosition(chatAdapter.getItemCount() - 1);
+        }
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (stompClient != null) {
-            stompClient.disconnect();
-        }
+        WebSocketManager.getInstance().unregisterMessageListener(this);
     }
 }

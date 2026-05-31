@@ -32,6 +32,18 @@ public class UserAdapter extends RecyclerView.Adapter<UserAdapter.UserViewHolder
         notifyDataSetChanged();
     }
 
+    public void updateUserStatus(Long userId, String status) {
+        if (users == null || userId == null) return;
+        for (int i = 0; i < users.size(); i++) {
+            User u = users.get(i);
+            if (u.getId() != null && u.getId().equals(userId)) {
+                u.setStatus(status);
+                notifyItemChanged(i);
+                break;
+            }
+        }
+    }
+
     @NonNull
     @Override
     public UserViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
