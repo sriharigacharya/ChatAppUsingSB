@@ -1,17 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
-    android:padding="16dp"
+    android:paddingHorizontal="16dp"
+    android:paddingVertical="12dp"
     android:gravity="center_vertical"
-    android:background="?attr/selectableItemBackground">
+    android:background="?android:attr/selectableItemBackground">
 
-    <ImageView
+    <androidx.cardview.widget.CardView
         android:layout_width="48dp"
         android:layout_height="48dp"
-        android:src="@android:drawable/sym_def_app_icon"
-        android:background="#E0E0E0" />
+        app:cardCornerRadius="24dp"
+        app:cardBackgroundColor="#1A1E29"
+        app:cardElevation="0dp">
+
+        <ImageView
+            android:id="@+id/ivAvatar"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:src="@drawable/rounded_account_circle_24"
+            android:scaleType="centerCrop"
+            android:importantForAccessibility="no" />
+    </androidx.cardview.widget.CardView>
 
     <TextView
         android:id="@+id/tvSenderUsername"
@@ -20,21 +32,74 @@
         android:layout_weight="1"
         android:layout_marginStart="16dp"
         android:text="Username"
-        android:textSize="18sp"
+        android:textSize="16sp"
         android:textStyle="bold"
-        android:textColor="@android:color/black" />
+        android:textColor="#E2E8F0"
+        android:fontFamily="sans-serif-medium" />
 
-    <Button
+    <androidx.appcompat.widget.AppCompatButton
         android:id="@+id/btnAccept"
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_height="36dp"
         android:text="Accept"
-        android:layout_marginEnd="8dp" />
+        android:textColor="#0B0F19"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:background="@drawable/bg_cyan_button"
+        android:layout_marginEnd="8dp"
+        android:paddingHorizontal="16dp" />
 
-    <Button
+    <androidx.appcompat.widget.AppCompatButton
         android:id="@+id/btnReject"
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Reject" />
+        android:layout_height="36dp"
+        android:text="Reject"
+        android:textColor="#E2E8F0"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:background="@drawable/bg_reject_button"
+        android:paddingHorizontal="16dp" />
 
 </LinearLayout>
+
+
+<!--<?xml version="1.0" encoding="utf-8"?>-->
+<!--<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"-->
+<!--    android:layout_width="match_parent"-->
+<!--    android:layout_height="wrap_content"-->
+<!--    android:orientation="horizontal"-->
+<!--    android:padding="16dp"-->
+<!--    android:gravity="center_vertical"-->
+<!--    android:background="?attr/selectableItemBackground">-->
+
+<!--    <ImageView-->
+<!--        android:layout_width="48dp"-->
+<!--        android:layout_height="48dp"-->
+<!--        android:src="@android:drawable/sym_def_app_icon"-->
+<!--        android:background="#E0E0E0" />-->
+
+<!--    <TextView-->
+<!--        android:id="@+id/tvSenderUsername"-->
+<!--        android:layout_width="0dp"-->
+<!--        android:layout_height="wrap_content"-->
+<!--        android:layout_weight="1"-->
+<!--        android:layout_marginStart="16dp"-->
+<!--        android:text="Username"-->
+<!--        android:textSize="18sp"-->
+<!--        android:textStyle="bold"-->
+<!--        android:textColor="@android:color/black" />-->
+
+<!--    <Button-->
+<!--        android:id="@+id/btnAccept"-->
+<!--        android:layout_width="wrap_content"-->
+<!--        android:layout_height="wrap_content"-->
+<!--        android:text="Accept"-->
+<!--        android:layout_marginEnd="8dp" />-->
+
+<!--    <Button-->
+<!--        android:id="@+id/btnReject"-->
+<!--        android:layout_width="wrap_content"-->
+<!--        android:layout_height="wrap_content"-->
+<!--        android:text="Reject" />-->
+
+<!--</LinearLayout>-->

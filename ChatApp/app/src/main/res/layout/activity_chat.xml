@@ -1,15 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical">
+    android:orientation="vertical"
+    android:background="#0B0F19">
 
     <androidx.appcompat.widget.Toolbar
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
-        android:background="?attr/colorPrimary"
-        android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar" />
+        android:background="#1A1E29"
+        app:title="SecureChat"
+        app:titleTextColor="#E2E8F0" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rvMessages"
@@ -17,36 +20,107 @@
         android:layout_height="0dp"
         android:layout_weight="1"
         android:clipToPadding="false"
-        android:padding="8dp"/>
+        android:padding="16dp"/>
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:padding="8dp"
-        android:background="#EEEEEE"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="12dp"
+        android:background="#0B0F19"
         android:gravity="center_vertical">
 
-        <EditText
-            android:id="@+id/etMessage"
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:hint="Type a message..."
-            android:inputType="textShortMessage|textMultiLine"
-            android:maxLines="4"
-            android:minHeight="48dp"
-            android:background="@android:color/white"
-            android:padding="12dp"
-            android:layout_marginEnd="8dp"/>
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="16dp"
+            android:layout_marginEnd="12dp"
+            android:background="@drawable/bg_input_field">
 
-        <Button
+            <EditText
+                android:id="@+id/etMessage"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Type a message..."
+                android:textColor="#E2E8F0"
+                android:textColorHint="#64748B"
+                android:inputType="textShortMessage|textMultiLine"
+                android:maxLines="4"
+                android:minHeight="48dp"
+                android:background="@null"
+                android:textSize="16sp"
+                android:importantForAutofill="no" />
+        </LinearLayout>
+
+        <androidx.appcompat.widget.AppCompatButton
             android:id="@+id/btnSend"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_width="64dp"
+            android:layout_height="48dp"
             android:text="Send"
-            android:minHeight="48dp"/>
+            android:textColor="#0B0F19"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:background="@drawable/bg_cyan_button"
+            android:elevation="2dp" />
 
     </LinearLayout>
 
 </LinearLayout>
+
+
+<!--<?xml version="1.0" encoding="utf-8"?>-->
+<!--<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"-->
+<!--    android:layout_width="match_parent"-->
+<!--    android:layout_height="match_parent"-->
+<!--    android:orientation="vertical">-->
+
+<!--    <androidx.appcompat.widget.Toolbar-->
+<!--        android:id="@+id/toolbar"-->
+<!--        android:layout_width="match_parent"-->
+<!--        android:layout_height="?attr/actionBarSize"-->
+<!--        android:background="?attr/colorPrimary"-->
+<!--        android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar" />-->
+
+<!--    <androidx.recyclerview.widget.RecyclerView-->
+<!--        android:id="@+id/rvMessages"-->
+<!--        android:layout_width="match_parent"-->
+<!--        android:layout_height="0dp"-->
+<!--        android:layout_weight="1"-->
+<!--        android:clipToPadding="false"-->
+<!--        android:padding="8dp"/>-->
+
+<!--    <LinearLayout-->
+<!--        android:layout_width="match_parent"-->
+<!--        android:layout_height="wrap_content"-->
+<!--        android:orientation="horizontal"-->
+<!--        android:padding="8dp"-->
+<!--        android:background="#EEEEEE"-->
+<!--        android:gravity="center_vertical">-->
+
+<!--        <EditText-->
+<!--            android:id="@+id/etMessage"-->
+<!--            android:layout_width="0dp"-->
+<!--            android:layout_height="wrap_content"-->
+<!--            android:layout_weight="1"-->
+<!--            android:hint="Type a message..."-->
+<!--            android:inputType="textShortMessage|textMultiLine"-->
+<!--            android:maxLines="4"-->
+<!--            android:minHeight="48dp"-->
+<!--            android:background="@android:color/white"-->
+<!--            android:padding="12dp"-->
+<!--            android:layout_marginEnd="8dp"/>-->
+
+<!--        <Button-->
+<!--            android:id="@+id/btnSend"-->
+<!--            android:layout_width="wrap_content"-->
+<!--            android:layout_height="wrap_content"-->
+<!--            android:text="Send"-->
+<!--            android:minHeight="48dp"/>-->
+
+<!--    </LinearLayout>-->
+
+<!--</LinearLayout>-->

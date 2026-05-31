@@ -4,6 +4,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
+import android.widget.RelativeLayout;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -70,14 +71,16 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ChatViewHolder
             boolean isSentByMe = message.getSenderId() != null &&
                     message.getSenderId().equals(Long.parseLong(currentUserId));
             
-            // Layout params to align left or right
-            LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) llMessageContainer.getLayoutParams();
+            // Layout params to align left or right inside RelativeLayout
+            RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) llMessageContainer.getLayoutParams();
             if (isSentByMe) {
-                params.gravity = android.view.Gravity.END;
-                llMessageContainer.setBackgroundColor(0xFFDCF8C6); // WhatsApp light green
+                params.addRule(RelativeLayout.ALIGN_PARENT_END);
+                params.removeRule(RelativeLayout.ALIGN_PARENT_START);
+                llMessageContainer.setBackgroundResource(R.drawable.bg_msg_sent);
             } else {
-                params.gravity = android.view.Gravity.START;
-                llMessageContainer.setBackgroundColor(0xFFFFFFFF); // White
+                params.addRule(RelativeLayout.ALIGN_PARENT_START);
+                params.removeRule(RelativeLayout.ALIGN_PARENT_END);
+                llMessageContainer.setBackgroundResource(R.drawable.bg_msg_received);
             }
             llMessageContainer.setLayoutParams(params);
         }
