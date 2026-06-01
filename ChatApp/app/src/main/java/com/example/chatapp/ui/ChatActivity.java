@@ -96,13 +96,13 @@ public class ChatActivity extends AppCompatActivity implements WebSocketManager.
                             if (msg.getSenderId() != null && msg.getSenderId().equals(Long.parseLong(currentUserId))) {
                                 // I sent this — decrypt the sender's copy using my private key
                                 if (msg.getSenderContent() != null && !msg.getSenderContent().isEmpty()) {
-                                    String decrypted = cryptoManager.decrypt(msg.getSenderContent());
+                                    String decrypted = cryptoManager.decrypt(msg.getSenderContent(), cryptoManager.getPublicKeyBase64());
                                     msg.setContent(decrypted);
                                 }
                             } else {
-                                // I received this — decrypt the content using my private key
+                                // I received this — decrypt the content using my private key and sender's public key
                                 if (msg.getContent() != null && !msg.getContent().isEmpty()) {
-                                    String decrypted = cryptoManager.decrypt(msg.getContent());
+                                    String decrypted = cryptoManager.decrypt(msg.getContent(), recipientPublicKey);
                                     msg.setContent(decrypted);
                                 }
                             }
@@ -163,9 +163,9 @@ public class ChatActivity extends AppCompatActivity implements WebSocketManager.
     @Override
     public void onMessageReceived(ChatMessage msg) {
         if (msg.getSenderId() != null && msg.getSenderId().equals(Long.parseLong(recipientId))) {
-            // Decrypt the content using my private key
+            // Decrypt the content using my private key and sender's public key
             try {
-                String decrypted = cryptoManager.decrypt(msg.getContent());
+                String decrypted = cryptoManager.decrypt(msg.getContent(), recipientPublicKey);
                 msg.setContent(decrypted);
             } catch (Exception e) {
                 Log.e("ChatActivity", "Failed to decrypt incoming message", e);

@@ -4,7 +4,8 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:fillViewport="true"
-    android:background="#0B0F19"> <!-- 60% Deep Obsidian Blue Background -->
+    android:background="#0B0F19"
+    android:fitsSystemWindows="true"> <!-- 60% Deep Obsidian Blue Background -->
 
     <LinearLayout
         android:layout_width="match_parent"

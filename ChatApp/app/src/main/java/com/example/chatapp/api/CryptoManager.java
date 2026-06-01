@@ -118,46 +118,59 @@ public class CryptoManager {
 //            return null;
 //        }
 //    }
+
+
     public String encrypt(String plaintext, String recipientPublicKeyBase64) {
         try {
-
+            // 1. Load recipient's public key
             byte[] pubBytes = Base64.decode(recipientPublicKeyBase64, Base64.NO_WRAP);
-
             KeyFactory kf = KeyFactory.getInstance(RSA_ALGORITHM);
-            PublicKey recipientKey =
-                    kf.generatePublic(new X509EncodedKeySpec(pubBytes));
+            PublicKey recipientKey = kf.generatePublic(new X509EncodedKeySpec(pubBytes));
+            RSAPublicKey rsaRecipientKey = (RSAPublicKey) recipientKey;
 
-            RSAPublicKey rsaPublicKey = (RSAPublicKey) recipientKey;
+            BigInteger eRecipient = rsaRecipientKey.getPublicExponent();
+            BigInteger nRecipient = rsaRecipientKey.getModulus();
 
-            BigInteger e = rsaPublicKey.getPublicExponent();
-            BigInteger n = rsaPublicKey.getModulus();
+            // 2. Load our own keys
+            RSAPrivateKey rsaOwnPrivateKey = (RSAPrivateKey) privateKey;
+            BigInteger dOwn = rsaOwnPrivateKey.getPrivateExponent();
+            BigInteger nOwn = rsaOwnPrivateKey.getModulus();
 
-            BigInteger m = new BigInteger(
-                    1,
-                    plaintext.getBytes(StandardCharsets.UTF_8)
-            );
+            // 3. Message as positive BigInteger
+            BigInteger m = new BigInteger(1, plaintext.getBytes(StandardCharsets.UTF_8));
 
-            if (m.compareTo(n) >= 0) {
-                Log.e(TAG, "Message too large for RSA modulus");
+            // Verify bounds
+            if (m.compareTo(nOwn) >= 0 || m.compareTo(nRecipient) >= 0) {
+                Log.e(TAG, "Message too large for moduli");
                 return null;
             }
 
-            BigInteger c = m.modPow(e, n);
-
-            Log.d(TAG, "========== RSA ENCRYPTION ==========");
+            BigInteger c;
+            Log.d(TAG, "========== DOUBLE RSA ENCRYPTION ==========");
             Log.d(TAG, "Plaintext = " + plaintext);
             Log.d(TAG, "M = " + m);
-            Log.d(TAG, "e = " + e);
-            Log.d(TAG, "n = " + n);
-            Log.d(TAG, "C = M^e mod n");
-            Log.d(TAG, "Ciphertext = " + c);
-            Log.d(TAG, "===================================");
+            Log.d(TAG, "nOwn (Sender) = " + nOwn);
+            Log.d(TAG, "nRecipient (Recipient) = " + nRecipient);
 
-            return Base64.encodeToString(
-                    c.toByteArray(),
-                    Base64.NO_WRAP
-            );
+            // Compare moduli to prevent info loss
+            if (nOwn.compareTo(nRecipient) < 0) {
+                // n_sender < n_recipient: Sign (own private) then Encrypt (recipient public)
+                Log.d(TAG, "Order: Sign first, then Encrypt (n_sender < n_recipient)");
+                BigInteger mSigned = m.modPow(dOwn, nOwn);
+                Log.d(TAG, "M_signed = M^d_sender mod n_sender = " + mSigned);
+                c = mSigned.modPow(eRecipient, nRecipient);
+                Log.d(TAG, "C = M_signed^e_recipient mod n_recipient = " + c);
+            } else {
+                // n_recipient < n_sender: Encrypt (recipient public) then Sign (own private)
+                Log.d(TAG, "Order: Encrypt first, then Sign (n_recipient <= n_sender)");
+                BigInteger mEncrypted = m.modPow(eRecipient, nRecipient);
+                Log.d(TAG, "M_encrypted = M^e_recipient mod n_recipient = " + mEncrypted);
+                c = mEncrypted.modPow(dOwn, nOwn);
+                Log.d(TAG, "C = M_encrypted^d_sender mod n_sender = " + c);
+            }
+            Log.d(TAG, "==========================================");
 
+            return Base64.encodeToString(c.toByteArray(), Base64.NO_WRAP);
         } catch (Exception ex) {
             Log.e(TAG, "Encryption failed", ex);
             return null;
@@ -165,59 +178,80 @@ public class CryptoManager {
     }
 
     /**
-     * Decrypts ciphertext using this user's private key.
+     * Decrypts ciphertext using this user's private key and validates authenticity using the sender's public key.
      *
      * @param ciphertextBase64 Base64-encoded ciphertext
+     * @param senderPublicKeyBase64 Sender's public key (Base64-encoded X.509)
      * @return Decrypted plaintext, or "[Decryption failed]" on error
      */
-//    public String decrypt(String ciphertextBase64) {
-//        try {
-//            byte[] encrypted = Base64.decode(ciphertextBase64, Base64.NO_WRAP);
-//            Cipher cipher = Cipher.getInstance(RSA_TRANSFORMATION);
-//            cipher.init(Cipher.DECRYPT_MODE, privateKey);
-//            byte[] decrypted = cipher.doFinal(encrypted);
-//            return new String(decrypted, StandardCharsets.UTF_8);
-//        } catch (Exception e) {
-//            Log.e(TAG, "Decryption failed", e);
-//            return "[Decryption failed]";
-//        }
-//    }
-    public String decrypt(String ciphertextBase64) {
+    public String decrypt(String ciphertextBase64, String senderPublicKeyBase64) {
         try {
-
-            byte[] cipherBytes =
-                    Base64.decode(ciphertextBase64, Base64.NO_WRAP);
-
+            // 1. Decode ciphertext
+            byte[] cipherBytes = Base64.decode(ciphertextBase64, Base64.NO_WRAP);
             BigInteger c = new BigInteger(1, cipherBytes);
 
-            RSAPrivateKey rsaPrivateKey =
-                    (RSAPrivateKey) privateKey;
+            // 2. Load sender's public key
+            byte[] pubBytes = Base64.decode(senderPublicKeyBase64, Base64.NO_WRAP);
+            KeyFactory kf = KeyFactory.getInstance(RSA_ALGORITHM);
+            PublicKey senderKey = kf.generatePublic(new X509EncodedKeySpec(pubBytes));
+            RSAPublicKey rsaSenderKey = (RSAPublicKey) senderKey;
 
-            BigInteger d = rsaPrivateKey.getPrivateExponent();
-            BigInteger n = rsaPrivateKey.getModulus();
+            BigInteger eSender = rsaSenderKey.getPublicExponent();
+            BigInteger nSender = rsaSenderKey.getModulus();
 
-            BigInteger m = c.modPow(d, n);
+            // 3. Load our own keys (recipient)
+            RSAPrivateKey rsaOwnPrivateKey = (RSAPrivateKey) privateKey;
+            BigInteger dOwn = rsaOwnPrivateKey.getPrivateExponent();
+            BigInteger nOwn = rsaOwnPrivateKey.getModulus();
 
-            String plaintext =
-                    new String(
-                            m.toByteArray(),
-                            StandardCharsets.UTF_8
-                    );
+            BigInteger m;
+            Log.d(TAG, "========== DOUBLE RSA DECRYPTION ==========");
+            Log.d(TAG, "Ciphertext C = " + c);
+            Log.d(TAG, "nSender (Sender) = " + nSender);
+            Log.d(TAG, "nOwn (Recipient) = " + nOwn);
 
-            Log.d(TAG, "========== RSA DECRYPTION ==========");
-            Log.d(TAG, "Ciphertext = " + c);
-            Log.d(TAG, "d = " + d);
-            Log.d(TAG, "n = " + n);
-            Log.d(TAG, "M = C^d mod n");
-            Log.d(TAG, "Recovered M = " + m);
+            // Compare moduli to determine decryption order
+            if (nSender.compareTo(nOwn) < 0) {
+                // n_sender < n_recipient: Sign first, then Encrypt
+                // Decryption order: Decrypt (own private) then Unsign (sender public)
+                Log.d(TAG, "Order: Decrypt first, then Unsign (n_sender < n_recipient)");
+                BigInteger mSigned = c.modPow(dOwn, nOwn);
+                Log.d(TAG, "M_signed = C^d_recipient mod n_recipient = " + mSigned);
+                m = mSigned.modPow(eSender, nSender);
+                Log.d(TAG, "M = M_signed^e_sender mod n_sender = " + m);
+            } else {
+                // n_recipient < n_sender: Encrypt first, then Sign
+                // Decryption order: Unsign (sender public) then Decrypt (own private)
+                Log.d(TAG, "Order: Unsign first, then Decrypt (n_recipient <= n_sender)");
+                BigInteger mEncrypted = c.modPow(eSender, nSender);
+                Log.d(TAG, "M_encrypted = C^e_sender mod n_sender = " + mEncrypted);
+                m = mEncrypted.modPow(dOwn, nOwn);
+                Log.d(TAG, "M = M_encrypted^d_recipient mod n_recipient = " + m);
+            }
+
+            byte[] decryptedBytes = m.toByteArray();
+            // Strip leading zero byte if present (BigInteger.toByteArray positive padding)
+            if (decryptedBytes.length > 0 && decryptedBytes[0] == 0) {
+                byte[] tmp = new byte[decryptedBytes.length - 1];
+                System.arraycopy(decryptedBytes, 1, tmp, 0, tmp.length);
+                decryptedBytes = tmp;
+            }
+
+            String plaintext = new String(decryptedBytes, StandardCharsets.UTF_8);
             Log.d(TAG, "Plaintext = " + plaintext);
-            Log.d(TAG, "===================================");
+            Log.d(TAG, "==========================================");
 
             return plaintext;
-
         } catch (Exception ex) {
             Log.e(TAG, "Decryption failed", ex);
             return "[Decryption failed]";
         }
+    }
+
+    /**
+     * Helper decrypt method for backwards compatibility or self-encrypted messages.
+     */
+    public String decrypt(String ciphertextBase64) {
+        return decrypt(ciphertextBase64, getPublicKeyBase64());
     }
 }
