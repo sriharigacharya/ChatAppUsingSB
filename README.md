@@ -129,9 +129,144 @@ if (msg.getSenderId().equals(currentUserId)) {
 ```
 **Security Outcome**: The server stores only the two ciphertexts. Since the server does not have Alice's or Bob's private keys, the messages remain **100% confidential**.
 
+### E. Key Storage Formats & Code Variables Mapping (Understanding Logs & Code)
+When examining the database rows, network payloads, or Android `logcat` outputs, the keys appear in different formats depending on whether they are stored, transmitted, or actively computed in math operations:
+
+#### 1. Serialization & Storage Formats
+* **Private Key (Client Device Only)**:
+  * **Location**: Android private sandboxed SharedPreferences (`CryptoPrefs.xml`). **Never sent to the server.**
+  * **Format**: Serialized as a binary **PKCS#8 encoded byte array**, then represented as a standard **Base64 String** without line wraps (`Base64.NO_WRAP`).
+  * **PKCS#8 Notation Example**: Serializes the private key elements $(n, d, p, q, dP, dQ, qInv)$ into a single variable using ASN.1:
+    $$\text{RSAPrivateKey} \Rightarrow \text{SEQUENCE} \{ \text{version}, n, e, d, p, q, dP, dQ, qInv \}$$
+    This binary tree is DER-encoded and wrapped into a single base64 string.
+* **Public Key (Database & Exchange payload)**:
+  * **Location**: Relational Database (`friend_requests` table, columns `sender_public_key` and `recipient_public_key`).
+  * **Format**: Serialized as a binary **X.509 encoded byte array**, then represented as a standard **Base64 String** (e.g. starting with `MIIBIjANBgkqhkiG9w0B...`).
+  * **X.509 Notation Example (Packaging $(n, e)$ into a single variable)**:
+    An RSA public key mathematically consists of two components: Modulus $n$ and Public Exponent $e$, represented as $(n, e)$. To store them in a single database string variable (e.g., `recipientPublicKey`), the app packages them using the standard **X.509 SubjectPublicKeyInfo** ASN.1 sequence:
+    1. First, the key parameters $(n, e)$ are formatted into an inner sequence:
+       $$\text{RSAPublicKey} \Rightarrow \text{SEQUENCE} \{ n \text{ (INTEGER)}, e \text{ (INTEGER)} \}$$
+    2. Next, this inner block is wrapped with the algorithm identifier ($1.2.840.113549.1.1.1$ for RSA):
+       $$\text{SubjectPublicKeyInfo} \Rightarrow \text{SEQUENCE} \{ \text{algorithm (AlgorithmIdentifier)}, \text{subjectPublicKey (BIT STRING wraps RSAPublicKey)} \}$$
+    3. The complete abstract tree is compiled into a single contiguous binary byte array using **DER (Distinguished Encoding Rules)**.
+    4. Finally, the binary bytes are Base64-encoded to yield a single, portable string variable stored in the DB:
+       $$\text{Public Key String} = \text{Base64}(\text{DER}(\text{SubjectPublicKeyInfo}(n, e)))$$
+
+#### 2. Runtime Mathematical Representations (Why Logs Show "Just Numbers")
+At runtime inside `CryptoManager.java`, Base64 strings cannot be mathematically computed. The keys are dynamically cast to Java **`BigInteger`** objects to calculate raw modular arithmetic (e.g. $M^e \pmod n$). 
+
+When Java prints a `BigInteger` using string concatenation in logs, it automatically prints the **raw base-10 decimal integer sequence** rather than a Base64 string. The table below maps the code variables to their cryptographic roles:
+
+| Code Variable | Cryptographic / Math Role | Description | Stored In |
+| :--- | :--- | :--- | :--- |
+| **`privateKey`** / **`rsaOwnPrivateKey`** | Private Key ($Key_{private}$) | The client's local private credential object. | Local `CryptoPrefs.xml` |
+| **`dOwn`** | **Private Exponent ($d$)** | The secret exponent used to sign or decrypt data. | Local `CryptoPrefs.xml` |
+| **`nOwn`** / **`nSender`** / **`nRecipient`** | **Modulus ($n$)** | The giant RSA base number ($p \times q$) shared by both public and private keys. | Shared/DB |
+| **`recipientKey`** / **`rsaRecipientKey`** | Recipient's Public Key | The public key object of the person you are sending a message to. | DB (`friend_requests`) |
+| **`eRecipient`** / **`eSender`** | **Public Exponent ($e$)** | The encryption exponent (standard RSA value `65537`). | Shared |
+| **`senderKey`** / **`rsaSenderKey`** | Sender's Public Key | The public key object of the person who sent the message you are decrypting. | DB (`friend_requests`) |
+| **`M`** | Message Plaintext ($M$) | The decimal representation of your plaintext string. | Temporary Memory |
+| **`C`** | Ciphertext ($C$) | The raw decimal representation of the modular math output before Base64 serialization. | DB (as Base64 String) |
+
 ---
 
-## 3. Internet Network Security Concepts
+## 3. How the App Works: End-to-End Application Workflows
+
+To understand how **ChatAppV2** functions at runtime, we can break down its operation into five distinct, sequential phases that span the Android Native client, the Spring Boot servers, the DB, and the Redis cache.
+
+### Phase 1: User Onboarding & Cryptographic Key Generation
+When a new user installs the app and completes registration/login:
+1. **Key Generation Trigger**: During initial setup, the Android client checks if a cryptographic key pair exists locally in `CryptoPrefs.xml`.
+2. **On-Device Generation**: If none exists, `CryptoManager.java` uses `KeyPairGenerator` to generate an **RSA 2048-bit key pair** locally.
+3. **Private Key Storage**: The private key is encoded in Base64 (using `PKCS8EncodedKeySpec`) and saved directly into the private, sandbox-isolated **`SharedPreferences`** (`CryptoPrefs.xml`). **It never leaves the device.**
+4. **Public Key Upload**: The client extracts the public key, encodes it in Base64 (using `X509EncodedKeySpec`), and registers the user profile on the Spring Boot backend (`/api/auth/register`).
+
+---
+
+### Phase 2: User Discovery & Cryptographic Friendship Handshake (Public Key Exchange)
+Before User A (Alice) can send an E2EE message to User B (Bob), Alice must obtain Bob's public key. The application manages this using a secure public key exchange integrated directly into the friendship request workflow:
+
+1. **User Search**: Alice searches for Bob's username in `SearchUsersActivity.java`. The request queries `/api/friends/search` on the backend, returning Bob's basic profile (excluding his public key to minimize exposure).
+2. **Initiating Friend Request**: Alice taps "Add Friend". Her device sends a POST request to `/api/friends/request` containing **Alice's Public Key** in the payload.
+3. **Pending Persistence**: The backend creates a new `FriendRequest` entity in the DB with status `PENDING`, storing Alice's public key.
+4. **Receiving & Accepting**: Bob opens `FriendRequestsActivity.java`, sees Alice's pending request, and accepts it. Bob's device sends a POST request to `/api/friends/accept/{requestId}` containing **Bob's Public Key** in the payload.
+5. **Establishing Key Association**: The backend updates the relation status to `ACCEPTED` and stores Bob's public key.
+6. **Key Retrieval**: When either user retrieves their friends list via `/api/friends/list/{userId}`, the server returns each friend's public key. These public keys are loaded in local memory (`ChatActivity.java`) to prepare for secure chatting.
+
+---
+
+### Phase 3: The Real-time End-to-End Encrypted Messaging Pipeline
+When Alice types a message to Bob and presses "Send", a robust multi-node, real-time message delivery pipeline executes:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Alice as Alice's Device
+    participant BackendA as Spring Boot Node A
+    participant Redis as Redis Pub/Sub
+    participant BackendB as Spring Boot Node B
+    actor Bob as Bob's Device
+    participant FCM as Firebase (FCM)
+
+    Note over Alice: 1. Encrypt message twice:<br/>- For Bob (using Bob's Public Key)<br/>- For Alice (using Alice's Public Key)
+    Alice->>BackendA: 2. WebSocket: SEND /app/chat (content, senderContent)
+    Note over BackendA: 3. Persist dual-ciphertext in DB
+    BackendA->>Redis: 4. Redis Pub/Sub: Publish ChatMessageDto to "chatRoomTopic"
+    Note over Redis: 5. Broadcast message to all active server nodes
+    Redis->>BackendB: 6. Receive message event
+    rect rgb(230, 245, 255)
+        alt Bob is Online (Active WebSocket connection on Node B)
+            BackendB->>Bob: 7a. STOMP: Push to /topic/messages/{BobId}
+            Note over Bob: 8a. Decrypt 'content' with Bob's Private Key
+        else Bob is Offline
+            BackendB->>FCM: 7b. Trigger Push Notification payload
+            FCM-->>Bob: 8b. Display notification: "New message from Alice"
+        end
+    end
+```
+
+#### Steps in Detail:
+1. **Dual-Ciphertext Encryption**:
+   `ChatActivity.java` calls `CryptoManager.java` to encrypt the plaintext message twice:
+   * **For the Recipient (Bob)**: Encrypted with Bob's Public Key -> stored in the `content` field.
+   * **For the Sender (Alice)**: Encrypted with Alice's Public Key -> stored in the `senderContent` field.
+2. **WebSocket STOMP Transmission**:
+   The two ciphertexts are bundled inside a `ChatMessageDto` and sent via an active secure WebSocket connection (WSS) to the backend broker at `/app/chat`.
+3. **Database Persistence**:
+   The Spring Boot controller (`ChatController.java`) intercepts the frame at `@MessageMapping("/chat")` and delegates it to `ChatMessageService.java`, which persists the record in the Relational DB (`messages` table).
+4. **Redis Cluster Broadcast**:
+   To support multiple horizontal backend instances, the handling node publishes the `ChatMessageDto` to the Redis topic `chatRoomTopic`.
+5. **Local Routing & Connection Check**:
+   All active backend instances receive the Redis broadcast. The instance that maintains Bob's active WebSocket connection receives the message and:
+   * **If Bob is Online**: Broadcasts the message payload to Bob's individual STOMP topic `/topic/messages/{recipientId}`.
+   * **If Bob is Offline**: Automatically invokes `NotificationService.java` to send a secure push notification to Bob's device using **Firebase Cloud Messaging (FCM)**.
+6. **Client-Side Decryption**:
+   Bob's device receives the WebSocket frame or notification. Because Bob is the recipient, the client extracts `content` and decrypts it locally using **Bob's Private Key** stored inside `CryptoPrefs.xml`, rendering the original plaintext in the UI.
+
+---
+
+### Phase 4: WebSocket-Based Real-time Presence Tracking
+The application maintains live presence indicators for all online users dynamically across the network:
+1. **Presence Registry**: When an Android client establishes a WebSocket connection to the endpoint `/ws`, `WebSocketEventListener.java` captures the `SessionConnectEvent`, extracts the user's `username` from the connection headers, registers it as online in a global Redis Set (`online_users`), and updates the DB.
+2. **Status Broadcasting**: The server immediately broadcasts a status payload (e.g. `{"userId": 10, "status": "ONLINE"}`) to the global WebSocket topic `/topic/status`.
+3. **UI Updates**: All active clients subscribed to `/topic/status` receive this event. Their friendship adapters (`UserAdapter.java`) instantly update to display green online status indicators.
+4. **Clean Disconnection**: When a client loses connection or closes the app, the `SessionDisconnectEvent` fires. The listener removes the user from the Redis Set, sets their database status to `OFFLINE`, and broadcasts the status change globally.
+
+---
+
+### Phase 5: Message History Retrieval & Zero-Knowledge Decryption
+When a user opens a conversation or reinstalls the app (restoring their private key):
+1. **Query**: The Android client calls the HTTP REST API `/api/messages/history` with query parameters of the two conversing users.
+2. **Database Query**: The backend fetches all matching message rows from the `messages` table in chronological order and returns them.
+3. **Conditional Decryption**:
+   When the messages populate the local RecyclerView in `ChatActivity.java`, the client dynamically identifies who sent the message:
+   * **Sent by current user (Alice)**: Decrypts `senderContent` (which was encrypted with Alice's public key) using her own Private Key.
+   * **Received by current user (Alice)**: Decrypts `content` (which was encrypted with Alice's public key by Bob) using her own Private Key.
+4. **Verification**: The messages display seamlessly in the chat bubble list, guaranteeing that only the two authentic parties have ever had access to the message contents.
+
+---
+
+## 4. Internet Network Security Concepts
 
 Beyond E2EE, the application employs multiple industry-standard security concepts to protect network traffic, data integrity, and authentication mechanisms.
 
@@ -193,7 +328,7 @@ public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Excepti
 
 ---
 
-## 4. Key Limitations & Hardening Strategies
+## 5. Key Limitations & Hardening Strategies
 
 While the current implementation provides robust cryptographic privacy, production deployments typically introduce standard hardening mechanisms:
 
@@ -203,3 +338,22 @@ While the current implementation provides robust cryptographic privacy, producti
 | **Trust on First Use (TOFU)** | Public keys are downloaded directly from the server on demand. | Implement **Key Pinning** and **Signature Verification** to verify that public keys haven't been altered/replaced by a rogue server (MitM). |
 | **Key Storage** | Stored in standard `SharedPreferences`. | Use the **Android Keystore System** to hardware-encrypt keys (using TEE - Trusted Execution Environment or StrongBox HSMs) to prevent access on rooted devices. |
 | **Forward Secrecy** | Static long-term RSA keys are used for all messages. | Transition to **Double Ratchet Algorithm** (used by Signal/WhatsApp) to generate ephemeral session keys that change after every message, ensuring past logs remain safe even if a master key is compromised. |
+
+---
+
+## 6. Cryptographic Notation Reference Table
+
+For academic reports and codebase analysis, use this reference table of standard cryptographic notations mapping directly to ChatAppV2 variables:
+
+| Mathematical Notation | Cryptographic Entity | ChatAppV2 Code representation | Description / Relation |
+| :---: | :--- | :--- | :--- |
+| **$(n, e)$** | **Public Key** | `PublicKey` (Base64 X.509 String) | Modulus $n$ and Public exponent $e$. Used to encrypt messages and verify signatures. |
+| **$(n, d)$** | **Private Key** | `PrivateKey` (Base64 PKCS#8 Local String) | Modulus $n$ and Private exponent $d$. Keep secret. Used to decrypt messages and generate signatures. |
+| **$n$** | RSA Modulus | `nOwn`, `nSender`, `nRecipient` | Giant compound base integer ($p \times q$) shared by both keys. |
+| **$e$** | Public Exponent | `eRecipient`, `eSender` | Encryption helper. Constant set to **`65537`** ($2^{16} + 1$). |
+| **$d$** | Private Exponent | `dOwn` | Secret exponent mathematically computed such that: $d \cdot e \equiv 1 \pmod{\phi(n)}$. |
+| **$M$** | Message Plaintext | `plaintext` / `m` | The unencrypted input string represented as an integer. |
+| **$C$** | Ciphertext | `content` (for recipient), `senderContent` (for sender) | The mathematically encrypted ciphertext output: $C \equiv M^e \pmod n$. |
+| **$S$** | Digital Signature | Computed in dynamic double-RSA | Signed hash/value of a message generated via: $S \equiv M^d \pmod n$. |
+| **$M_s$** | Signed-then-Encrypted | Double-RSA branch $(n_{own} < n_{recip})$ | Signature is nested inside encryption: $C \equiv (M^d \pmod{n_{own}})^e \pmod{n_{recip}}$. |
+| **$M_e$** | Encrypted-then-Signed | Double-RSA branch $(n_{recip} \le n_{own})$ | Encryption is nested inside signature: $C \equiv (M^e \pmod{n_{recip}})^d \pmod{n_{own}}$. |
