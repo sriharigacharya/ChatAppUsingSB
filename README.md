@@ -1,6 +1,8 @@
 # ChatAppV2: End-to-End Encrypted Real-Time Messaging Platform
 
-An enterprise-grade, secure, real-time messaging system featuring **End-to-End Encryption (E2EE)**, asymmetric cryptographic key exchanges, and real-time message broadcasting. The platform is architected with a decoupled **Android Native Client** and a robust **Spring Boot Java Backend**, utilizing **WebSockets with STOMP** and **Redis Pub/Sub** for multi-instance scalability.
+A secure, full-stack Android chat application enabling **1-to-1 real-time messaging** with **End-to-End Encryption (E2EE)**, online presence tracking, message status receipts (Sent / Delivered / Read), and offline push notifications. The platform implements a **Double-RSA 2048-bit cryptographic scheme** for authenticated encryption, ensuring the backend server is a zero-knowledge mediator that can never read message contents.
+
+Built with a decoupled **Android Native Client** (Java, Android SDK, XML) and a **Spring Boot backend**, communicating over **WebSockets (STOMP)** for real-time delivery and **HTTPS REST** for data operations. A **Redis Pub/Sub** layer bridges multiple server instances for horizontal scalability, **PostgreSQL** provides persistent message and user storage, and **Firebase Cloud Messaging (FCM)** delivers push notifications to offline users.
 
 ---
 
@@ -10,17 +12,17 @@ The system follows a classic **Client-Server Architecture**, but with a modern, 
 
 ```mermaid
 graph TD
-    subgraph Client Device (Android)
+    subgraph "Client Device (Android)"
         A[Android App Client] <--> |Local Storage| B[(SharedPreferences: CryptoPrefs.xml)]
         A <--> |Crypto Engine| C[CryptoManager.java]
     end
 
-    subgraph Transport Layer (Secure Channels)
+    subgraph "Transport Layer (Secure Channels)"
         A <--> |HTTPS REST API / JSON| D[Spring Boot Backend]
         A <--> |WSS STOMP over WebSockets| D
     end
 
-    subgraph Backend Services & Storage
+    subgraph "Backend Services and Storage"
         D <--> |Pub/Sub Messaging Bridge| E[(Redis Cache / Broker)]
         D <--> |JPA Persistence| F[(Relational Database)]
     end
@@ -69,14 +71,14 @@ sequenceDiagram
     participant Server as Spring Boot Server
     actor Bob as Bob (User B)
 
-    Alice->>Server: 1. Send Friend Request (Alice's Public Key Attached)
+    Alice->>Server: Send Friend Request (Alice's Public Key Attached)
     Note over Server: Server stores Alice's Public Key in FriendRequest (PENDING)
-    Server-->>Bob: 2. Deliver Pending Request Notification
-    Bob->>Server: 3. Accept Friend Request (Bob's Public Key Attached)
+    Server-->>Bob: Deliver Pending Request Notification
+    Bob->>Server: Accept Friend Request (Bob's Public Key Attached)
     Note over Server: Server stores Bob's Public Key; updates relation to ACCEPTED
-    Alice->>Server: 4. Request Friend List (with Bob's public key)
+    Alice->>Server: Request Friend List (with Bob's public key)
     Server-->>Alice: Returns Friend List containing Bob's Public Key
-    Bob->>Server: 5. Request Friend List (with Alice's public key)
+    Bob->>Server: Request Friend List (with Alice's public key)
     Server-->>Bob: Returns Friend List containing Alice's Public Key
 ```
 
@@ -159,14 +161,14 @@ When Java prints a `BigInteger` using string concatenation in logs, it automatic
 
 | Code Variable | Cryptographic / Math Role | Description | Stored In |
 | :--- | :--- | :--- | :--- |
-| **`privateKey`** / **`rsaOwnPrivateKey`** | Private Key ($Key_{private}$) | The client's local private credential object. | Local `CryptoPrefs.xml` |
-| **`dOwn`** | **Private Exponent ($d$)** | The secret exponent used to sign or decrypt data. | Local `CryptoPrefs.xml` |
-| **`nOwn`** / **`nSender`** / **`nRecipient`** | **Modulus ($n$)** | The giant RSA base number ($p \times q$) shared by both public and private keys. | Shared/DB |
+| **`privateKey`** / **`rsaOwnPrivateKey`** | Private Key | The client's local private credential object. | Local `CryptoPrefs.xml` |
+| **`dOwn`** | **Private Exponent (d)** | The secret exponent used to sign or decrypt data. | Local `CryptoPrefs.xml` |
+| **`nOwn`** / **`nSender`** / **`nRecipient`** | **Modulus (n)** | The giant RSA base number (p × q) shared by both public and private keys. | Shared/DB |
 | **`recipientKey`** / **`rsaRecipientKey`** | Recipient's Public Key | The public key object of the person you are sending a message to. | DB (`friend_requests`) |
-| **`eRecipient`** / **`eSender`** | **Public Exponent ($e$)** | The encryption exponent (standard RSA value `65537`). | Shared |
+| **`eRecipient`** / **`eSender`** | **Public Exponent (e)** | The encryption exponent (standard RSA value `65537`). | Shared |
 | **`senderKey`** / **`rsaSenderKey`** | Sender's Public Key | The public key object of the person who sent the message you are decrypting. | DB (`friend_requests`) |
-| **`M`** | Message Plaintext ($M$) | The decimal representation of your plaintext string. | Temporary Memory |
-| **`C`** | Ciphertext ($C$) | The raw decimal representation of the modular math output before Base64 serialization. | DB (as Base64 String) |
+| **`M`** | Message Plaintext (M) | The decimal representation of your plaintext string. | Temporary Memory |
+| **`C`** | Ciphertext (C) | The raw decimal representation of the modular math output before Base64 serialization. | DB (as Base64 String) |
 
 ---
 
@@ -347,13 +349,14 @@ For academic reports and codebase analysis, use this reference table of standard
 
 | Mathematical Notation | Cryptographic Entity | ChatAppV2 Code representation | Description / Relation |
 | :---: | :--- | :--- | :--- |
-| **$(n, e)$** | **Public Key** | `PublicKey` (Base64 X.509 String) | Modulus $n$ and Public exponent $e$. Used to encrypt messages and verify signatures. |
-| **$(n, d)$** | **Private Key** | `PrivateKey` (Base64 PKCS#8 Local String) | Modulus $n$ and Private exponent $d$. Keep secret. Used to decrypt messages and generate signatures. |
-| **$n$** | RSA Modulus | `nOwn`, `nSender`, `nRecipient` | Giant compound base integer ($p \times q$) shared by both keys. |
-| **$e$** | Public Exponent | `eRecipient`, `eSender` | Encryption helper. Constant set to **`65537`** ($2^{16} + 1$). |
-| **$d$** | Private Exponent | `dOwn` | Secret exponent mathematically computed such that: $d \cdot e \equiv 1 \pmod{\phi(n)}$. |
-| **$M$** | Message Plaintext | `plaintext` / `m` | The unencrypted input string represented as an integer. |
-| **$C$** | Ciphertext | `content` (for recipient), `senderContent` (for sender) | The mathematically encrypted ciphertext output: $C \equiv M^e \pmod n$. |
-| **$S$** | Digital Signature | Computed in dynamic double-RSA | Signed hash/value of a message generated via: $S \equiv M^d \pmod n$. |
-| **$M_s$** | Signed-then-Encrypted | Double-RSA branch $(n_{own} < n_{recip})$ | Signature is nested inside encryption: $C \equiv (M^d \pmod{n_{own}})^e \pmod{n_{recip}}$. |
-| **$M_e$** | Encrypted-then-Signed | Double-RSA branch $(n_{recip} \le n_{own})$ | Encryption is nested inside signature: $C \equiv (M^e \pmod{n_{recip}})^d \pmod{n_{own}}$. |
+| **(n, e)** | **Public Key** | `PublicKey` (Base64 X.509 String) | Modulus n and Public exponent e. Used to encrypt messages and verify signatures. |
+| **(n, d)** | **Private Key** | `PrivateKey` (Base64 PKCS#8 Local String) | Modulus n and Private exponent d. Keep secret. Used to decrypt messages and generate signatures. |
+| **n** | RSA Modulus | `nOwn`, `nSender`, `nRecipient` | Giant compound base integer (p × q) shared by both keys. |
+| **e** | Public Exponent | `eRecipient`, `eSender` | Encryption helper. Constant set to **`65537`** (2<sup>16</sup> + 1). |
+| **d** | Private Exponent | `dOwn` | Secret exponent computed such that: d · e ≡ 1 (mod φ(n)). |
+| **M** | Message Plaintext | `plaintext` / `m` | The unencrypted input string represented as an integer. |
+| **C** | Ciphertext | `content` (for recipient), `senderContent` (for sender) | The mathematically encrypted ciphertext output: C ≡ M<sup>e</sup> (mod n). |
+| **S** | Digital Signature | Computed in dynamic double-RSA | Signed hash/value of a message generated via: S ≡ M<sup>d</sup> (mod n). |
+| **Ms** | Signed-then-Encrypted | Double-RSA branch (n_own < n_recip) | Signature is nested inside encryption: C ≡ (M<sup>d</sup> mod n_own)<sup>e</sup> mod n_recip. |
+| **Me** | Encrypted-then-Signed | Double-RSA branch (n_recip ≤ n_own) | Encryption is nested inside signature: C ≡ (M<sup>e</sup> mod n_recip)<sup>d</sup> mod n_own. |
+

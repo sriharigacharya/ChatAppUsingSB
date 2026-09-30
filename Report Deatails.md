@@ -299,17 +299,17 @@ The overall architecture of ChatAppV2 is shown in **Fig 4.1**. The system is div
 
 ```mermaid
 graph TD
-    subgraph Client Device (Android Client)
+    subgraph "Client Device (Android Client)"
         A[Android App Client] <--> |Local Storage| B[(SharedPreferences: CryptoPrefs.xml)]
         A <--> |Crypto Engine| C[CryptoManager.java]
     end
 
-    subgraph Transport Layer (Secure Channels)
+    subgraph "Transport Layer (Secure Channels)"
         A <--> |HTTPS REST API / JSON| D[Spring Boot Backend]
         A <--> |WSS STOMP over WebSockets| D
     end
 
-    subgraph Backend Services & Storage
+    subgraph "Backend Services and Storage"
         D <--> |Pub/Sub Messaging Bridge| E[(Redis Cache / Broker)]
         D <--> |JPA Persistence| F[(Relational Database)]
     end
@@ -341,14 +341,14 @@ sequenceDiagram
     participant Server as Spring Boot Server
     actor Bob as Bob (User B)
 
-    Alice->>Server: 1. Send Friend Request (Alice's Public Key Attached)
+    Alice->>Server: Send Friend Request (Alice's Public Key Attached)
     Note over Server: Server stores Alice's Public Key in FriendRequest (PENDING)
-    Server-->>Bob: 2. Deliver Pending Request Notification
-    Bob->>Server: 3. Accept Friend Request (Bob's Public Key Attached)
+    Server-->>Bob: Deliver Pending Request Notification
+    Bob->>Server: Accept Friend Request (Bob's Public Key Attached)
     Note over Server: Server stores Bob's Public Key; updates relation to ACCEPTED
-    Alice->>Server: 4. Request Friend List (with Bob's public key)
+    Alice->>Server: Request Friend List (with Bob's public key)
     Server-->>Alice: Returns Friend List containing Bob's Public Key
-    Bob->>Server: 5. Request Friend List (with Alice's public key)
+    Bob->>Server: Request Friend List (with Alice's public key)
     Server-->>Bob: Returns Friend List containing Alice's Public Key
 ```
 *Fig 4.2: Cryptographic Friendship Handshake (Public Key Exchange)*
@@ -366,19 +366,19 @@ sequenceDiagram
     actor Bob as Bob's Device
     participant FCM as Firebase (FCM)
 
-    Note over Alice: 1. Encrypt message twice:<br/>- For Bob (using Bob's Public Key)<br/>- For Alice (using Alice's Public Key)
-    Alice->>BackendA: 2. WebSocket: SEND /app/chat (content, senderContent)
-    Note over BackendA: 3. Persist dual-ciphertext in DB
-    BackendA->>Redis: 4. Redis Pub/Sub: Publish ChatMessageDto to "chatRoomTopic"
-    Note over Redis: 5. Broadcast message to all active server nodes
-    Redis->>BackendB: 6. Receive message event
+    Note over Alice: Encrypt message twice:<br/>- For Bob (using Bob's Public Key)<br/>- For Alice (using Alice's Public Key)
+    Alice->>BackendA: WebSocket: SEND /app/chat (content, senderContent)
+    Note over BackendA: Persist dual-ciphertext in DB
+    BackendA->>Redis: Redis Pub/Sub: Publish ChatMessageDto to chatRoomTopic
+    Note over Redis: Broadcast message to all active server nodes
+    Redis->>BackendB: Receive message event
     rect rgb(230, 245, 255)
         alt Bob is Online (Active WebSocket connection on Node B)
-            BackendB->>Bob: 7a. STOMP: Push to /topic/messages/{BobId}
-            Note over Bob: 8a. Decrypt 'content' with Bob's Private Key
+            BackendB->>Bob: STOMP: Push to /topic/messages/{BobId}
+            Note over Bob: Decrypt content with Bob's Private Key
         else Bob is Offline
-            BackendB->>FCM: 7b. Trigger Push Notification payload
-            FCM-->>Bob: 8b. Display notification: "New message from Alice"
+            BackendB->>FCM: Trigger Push Notification payload
+            FCM-->>Bob: Display notification: New message from Alice
         end
     end
 ```
