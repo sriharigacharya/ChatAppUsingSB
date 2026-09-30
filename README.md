@@ -75,7 +75,7 @@ sequenceDiagram
     Note over Server: Server stores Alice's Public Key in FriendRequest (PENDING)
     Server-->>Bob: Deliver Pending Request Notification
     Bob->>Server: Accept Friend Request (Bob's Public Key Attached)
-    Note over Server: Server stores Bob's Public Key; updates relation to ACCEPTED
+    Note over Server: Server stores Bob's Public Key, updates relation to ACCEPTED
     Alice->>Server: Request Friend List (with Bob's public key)
     Server-->>Alice: Returns Friend List containing Bob's Public Key
     Bob->>Server: Request Friend List (with Alice's public key)
