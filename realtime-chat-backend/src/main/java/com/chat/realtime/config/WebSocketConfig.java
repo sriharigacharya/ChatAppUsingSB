@@ -1,6 +1,8 @@
 package com.chat.realtime.config;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.messaging.simp.config.ChannelRegistration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
@@ -8,12 +10,13 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 
 @Configuration
 @EnableWebSocketMessageBroker
+@RequiredArgsConstructor
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+
+    private final JwtChannelInterceptor jwtChannelInterceptor;
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
-        // Use the native simple broker for client subscriptions. 
-        // We will bridge between instances using Redis Pub/Sub behind the scenes.
         config.enableSimpleBroker("/topic", "/queue", "/user");
         config.setApplicationDestinationPrefixes("/app");
         config.setUserDestinationPrefix("/user");
@@ -21,9 +24,16 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        // Raw Websocket Endpoint (Often used by Android STOMP clients)
         registry.addEndpoint("/ws").setAllowedOriginPatterns("*");
-        // SockJS Fallback Endpoint
         registry.addEndpoint("/ws").setAllowedOriginPatterns("*").withSockJS();
+    }
+
+    /**
+     * Register the JWT interceptor on the inbound channel so every STOMP CONNECT
+     * frame is authenticated before the session is established.
+     */
+    @Override
+    public void configureClientInboundChannel(ChannelRegistration registration) {
+        registration.interceptors(jwtChannelInterceptor);
     }
 }

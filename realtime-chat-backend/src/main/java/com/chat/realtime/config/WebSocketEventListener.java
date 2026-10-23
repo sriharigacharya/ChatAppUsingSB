@@ -30,8 +30,15 @@ public class WebSocketEventListener {
     public void handleWebSocketConnectListener(SessionConnectEvent event) {
         StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
         
-        // Retrieve client-supplied username header from native headers
-        String username = headerAccessor.getFirstNativeHeader("username");
+        // Priority 1: Use authenticated Principal set by JwtChannelInterceptor
+        Principal userPrincipal = headerAccessor.getUser();
+        String username = userPrincipal != null ? userPrincipal.getName() : null;
+
+        // Fallback: If principal is not set (e.g. legacy), check native header
+        if (username == null || username.isEmpty()) {
+            username = headerAccessor.getFirstNativeHeader("username");
+        }
+
         if (username != null && !username.isEmpty()) {
             if (headerAccessor.getSessionAttributes() != null) {
                 headerAccessor.getSessionAttributes().put("username", username);
@@ -41,27 +48,13 @@ public class WebSocketEventListener {
             userService.updateUserStatus(username, User.Status.ONLINE);
             
             // Broadcast status change to global channel
-            userRepository.findByUsername(username).ifPresent(user -> {
+            final String finalUsername = username;
+            userRepository.findByUsername(finalUsername).ifPresent(user -> {
                 messagingTemplate.convertAndSend("/topic/status", (Object) Map.of(
                     "userId", user.getId(),
                     "status", "ONLINE"
                 ));
             });
-        } else {
-            // Fallback to principal if available
-            Principal user = headerAccessor.getUser();
-            if (user != null) {
-                log.info("User connected to WebSocket (Principal): {}", user.getName());
-                userStatusService.setUserOnline(user.getName());
-                userService.updateUserStatus(user.getName(), User.Status.ONLINE);
-                
-                userRepository.findByUsername(user.getName()).ifPresent(u -> {
-                    messagingTemplate.convertAndSend("/topic/status", (Object) Map.of(
-                        "userId", u.getId(),
-                        "status", "ONLINE"
-                    ));
-                });
-            }
         }
     }
 

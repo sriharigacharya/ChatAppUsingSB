@@ -1,5 +1,6 @@
 package com.chat.realtime.controller;
 
+import com.chat.realtime.config.JwtUtil;
 import com.chat.realtime.model.User;
 import com.chat.realtime.repository.UserRepository;
 import com.chat.realtime.service.UserService;
@@ -17,24 +18,27 @@ import java.util.stream.Collectors;
 public class UserController {
     private final UserService userService;
     private final UserRepository userRepository;
+    private final JwtUtil jwtUtil;
 
     @PostMapping("/register")
     public ResponseEntity<UserDto> register(@RequestBody AuthRequest request) {
         User user = userService.register(request.getUsername(), request.getPassword());
-        return ResponseEntity.ok(new UserDto(user.getId(), user.getUsername()));
+        String token = jwtUtil.generateToken(user.getUsername());
+        return ResponseEntity.ok(new UserDto(user.getId(), user.getUsername(), token));
     }
 
     @PostMapping("/login")
     public ResponseEntity<UserDto> login(@RequestBody AuthRequest request) {
         User user = userService.login(request.getUsername(), request.getPassword());
-        return ResponseEntity.ok(new UserDto(user.getId(), user.getUsername()));
+        String token = jwtUtil.generateToken(user.getUsername());
+        return ResponseEntity.ok(new UserDto(user.getId(), user.getUsername(), token));
     }
 
     @GetMapping("/users")
     public ResponseEntity<List<UserDto>> getUsers() {
         List<UserDto> users = userRepository.findAll()
                 .stream()
-                .map(u -> new UserDto(u.getId(), u.getUsername()))
+                .map(u -> new UserDto(u.getId(), u.getUsername(), null))
                 .collect(Collectors.toList());
         return ResponseEntity.ok(users);
     }
@@ -49,5 +53,6 @@ public class UserController {
     public static class UserDto {
         private final Long id;
         private final String username;
+        private final String token;
     }
 }

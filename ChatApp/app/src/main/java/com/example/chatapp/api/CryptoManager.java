@@ -18,6 +18,12 @@ import java.security.interfaces.RSAPublicKey;
 import java.security.interfaces.RSAPrivateKey;
 
 import javax.crypto.Cipher;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.security.SecureRandom;
 
 /**
  * Manages RSA 2048-bit keypair for end-to-end encryption.
@@ -253,5 +259,128 @@ public class CryptoManager {
      */
     public String decrypt(String ciphertextBase64) {
         return decrypt(ciphertextBase64, getPublicKeyBase64());
+    }
+
+    // ── Streaming File Encryption & Decryption (Google Tink Streaming AEAD) ──
+
+    /**
+     * Generates a 256-bit (32-byte) random symmetric AES key for streaming file encryption.
+     */
+    public byte[] generateFileKey() {
+        byte[] key = new byte[32];
+        new SecureRandom().nextBytes(key);
+        return key;
+    }
+
+    /**
+     * Wraps a 32-byte symmetric AES file key using the participant's RSA public key (Base64 X.509).
+     */
+    public String wrapKeyForUser(byte[] fileKey, String userPublicKeyBase64) throws Exception {
+        byte[] pubBytes = Base64.decode(userPublicKeyBase64, Base64.NO_WRAP);
+        KeyFactory kf = KeyFactory.getInstance(RSA_ALGORITHM);
+        PublicKey pubKey = kf.generatePublic(new X509EncodedKeySpec(pubBytes));
+
+        Cipher cipher = Cipher.getInstance(RSA_TRANSFORMATION);
+        cipher.init(Cipher.ENCRYPT_MODE, pubKey);
+        byte[] encryptedKey = cipher.doFinal(fileKey);
+        return Base64.encodeToString(encryptedKey, Base64.NO_WRAP);
+    }
+
+    /**
+     * Unwraps the encrypted 32-byte symmetric AES file key using this device's RSA private key.
+     */
+    public byte[] unwrapKey(String encryptedKeyBase64) throws Exception {
+        byte[] encryptedBytes = Base64.decode(encryptedKeyBase64, Base64.NO_WRAP);
+        Cipher cipher = Cipher.getInstance(RSA_TRANSFORMATION);
+        cipher.init(Cipher.DECRYPT_MODE, privateKey);
+        return cipher.doFinal(encryptedBytes);
+    }
+
+    /**
+     * Encrypts a file in 64 KB segments using Tink's AesGcmHkdfStreaming to prevent heap exhaustion.
+     */
+    public void encryptFile(File inputFile, File outputFile, byte[] fileKey) throws Exception {
+        com.google.crypto.tink.subtle.AesGcmHkdfStreaming streamingAead =
+                new com.google.crypto.tink.subtle.AesGcmHkdfStreaming(
+                        fileKey,
+                        "HmacSha256",
+                        32,
+                        64 * 1024, // 64 KB segment chunks
+                        0
+                );
+
+        byte[] associatedData = new byte[0];
+        try (FileInputStream fis = new FileInputStream(inputFile);
+             FileOutputStream fos = new FileOutputStream(outputFile);
+             OutputStream encStream = streamingAead.newEncryptingStream(fos, associatedData)) {
+
+            byte[] buffer = new byte[16 * 1024];
+            int read;
+            while ((read = fis.read(buffer)) != -1) {
+                encStream.write(buffer, 0, read);
+            }
+        }
+    }
+
+    /**
+     * Decrypts a ciphertext stream directly to a destination file in 64 KB segments.
+     */
+    public void decryptFile(InputStream inputStream, File outputFile, byte[] fileKey) throws Exception {
+        com.google.crypto.tink.subtle.AesGcmHkdfStreaming streamingAead =
+                new com.google.crypto.tink.subtle.AesGcmHkdfStreaming(
+                        fileKey,
+                        "HmacSha256",
+                        32,
+                        64 * 1024, // 64 KB segment chunks
+                        0
+                );
+
+        byte[] associatedData = new byte[0];
+        try (InputStream decStream = streamingAead.newDecryptingStream(inputStream, associatedData);
+             FileOutputStream fos = new FileOutputStream(outputFile)) {
+
+            byte[] buffer = new byte[16 * 1024];
+            int read;
+            while ((read = decStream.read(buffer)) != -1) {
+                fos.write(buffer, 0, read);
+            }
+        }
+    }
+
+    /**
+     * Post-decryption magic byte verification on the client side.
+     */
+    public static String detectMimeTypeByMagicBytes(File file) {
+        if (!file.exists() || file.length() < 4) return "application/octet-stream";
+        byte[] header = new byte[12];
+        try (FileInputStream fis = new FileInputStream(file)) {
+            int read = fis.read(header);
+            if (read < 4) return "application/octet-stream";
+
+            // JPEG: FF D8 FF
+            if ((header[0] & 0xFF) == 0xFF && (header[1] & 0xFF) == 0xD8 && (header[2] & 0xFF) == 0xFF) {
+                return "image/jpeg";
+            }
+            // PNG: 89 50 4E 47 0D 0A 1A 0A
+            if ((header[0] & 0xFF) == 0x89 && header[1] == 'P' && header[2] == 'N' && header[3] == 'G') {
+                return "image/png";
+            }
+            // GIF: 47 49 46 38 ("GIF8")
+            if (header[0] == 'G' && header[1] == 'I' && header[2] == 'F' && header[3] == '8') {
+                return "image/gif";
+            }
+            // WEBP: "RIFF" .... "WEBP"
+            if (header[0] == 'R' && header[1] == 'I' && header[2] == 'F' && header[3] == 'F' &&
+                read >= 12 && header[8] == 'W' && header[9] == 'E' && header[10] == 'B' && header[11] == 'P') {
+                return "image/webp";
+            }
+            // PDF: %PDF (25 50 44 46)
+            if (header[0] == '%' && header[1] == 'P' && header[2] == 'D' && header[3] == 'F') {
+                return "application/pdf";
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Failed reading magic bytes", e);
+        }
+        return "application/octet-stream";
     }
 }

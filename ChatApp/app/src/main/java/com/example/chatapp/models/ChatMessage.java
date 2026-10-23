@@ -7,15 +7,38 @@ public class ChatMessage {
     private String content;
     private String senderContent;
     private String status;
+    private String messageType; // "TEXT", "IMAGE", "FILE"
+    private String mediaFileId;
+    private String fileName;
+    private Long fileSize;
+    private String clientMessageId;
     private String createdAt; // backend sends LocalDateTime as ISO string
 
-    public ChatMessage() {}
+    // Local transient state for decrypted file path on device
+    private transient String localFilePath;
 
-    // Convenience constructor: AndroidActivity passes IDs as Strings from SessionManager
+    public ChatMessage() {
+        this.messageType = "TEXT";
+    }
+
+    // Convenience constructor for text messages
     public ChatMessage(String senderId, String recipientId, String content) {
         this.senderId = Long.parseLong(senderId);
         this.recipientId = Long.parseLong(recipientId);
         this.content = content;
+        this.messageType = "TEXT";
+    }
+
+    public boolean isImage() {
+        return "IMAGE".equalsIgnoreCase(messageType);
+    }
+
+    public boolean isFile() {
+        return "FILE".equalsIgnoreCase(messageType);
+    }
+
+    public boolean isText() {
+        return messageType == null || "TEXT".equalsIgnoreCase(messageType);
     }
 
     public Long getId() { return id; }
@@ -38,4 +61,22 @@ public class ChatMessage {
 
     public String getSenderContent() { return senderContent; }
     public void setSenderContent(String senderContent) { this.senderContent = senderContent; }
+
+    public String getMessageType() { return messageType; }
+    public void setMessageType(String messageType) { this.messageType = messageType; }
+
+    public String getMediaFileId() { return mediaFileId; }
+    public void setMediaFileId(String mediaFileId) { this.mediaFileId = mediaFileId; }
+
+    public String getFileName() { return fileName; }
+    public void setFileName(String fileName) { this.fileName = fileName; }
+
+    public Long getFileSize() { return fileSize; }
+    public void setFileSize(Long fileSize) { this.fileSize = fileSize; }
+
+    public String getClientMessageId() { return clientMessageId; }
+    public void setClientMessageId(String clientMessageId) { this.clientMessageId = clientMessageId; }
+
+    public String getLocalFilePath() { return localFilePath; }
+    public void setLocalFilePath(String localFilePath) { this.localFilePath = localFilePath; }
 }

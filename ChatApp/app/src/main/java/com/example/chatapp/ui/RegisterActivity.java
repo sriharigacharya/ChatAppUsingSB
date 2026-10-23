@@ -52,8 +52,10 @@ public class RegisterActivity extends AppCompatActivity {
                 binding.btnRegister.setEnabled(true);
                 if (response.isSuccessful() && response.body() != null) {
                     AuthResponse user = response.body();
-                    // Store user id + username — backend has no JWT, uses session-based auth
                     sessionManager.saveUserDetails(String.valueOf(user.getId()), user.getUsername());
+                    if (user.getToken() != null) {
+                        sessionManager.saveAuthToken(user.getToken());
+                    }
                     Toast.makeText(RegisterActivity.this, "Registration Successful! Welcome, " + user.getUsername(), Toast.LENGTH_SHORT).show();
                     finish(); // Go back to login
                 } else {

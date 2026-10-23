@@ -63,8 +63,10 @@ public class LoginActivity extends AppCompatActivity {
                 binding.btnLogin.setEnabled(true);
                 if (response.isSuccessful() && response.body() != null) {
                     AuthResponse authResponse = response.body();
-                    // Backend returns {id, username} — no JWT token
                     sessionManager.saveUserDetails(String.valueOf(authResponse.getId()), authResponse.getUsername());
+                    if (authResponse.getToken() != null) {
+                        sessionManager.saveAuthToken(authResponse.getToken());
+                    }
 
                     Toast.makeText(LoginActivity.this, "Welcome, " + authResponse.getUsername(), Toast.LENGTH_SHORT).show();
                     startActivity(new Intent(LoginActivity.this, MainActivity.class));

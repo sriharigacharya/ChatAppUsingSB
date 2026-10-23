@@ -6,16 +6,23 @@ import com.example.chatapp.models.AuthResponse;
 import com.example.chatapp.models.ChatMessage;
 import com.example.chatapp.models.FriendRequest;
 import com.example.chatapp.models.FriendRequestPayload;
+import com.example.chatapp.models.MediaFileDto;
 import com.example.chatapp.models.User;
 
 import java.util.List;
 
+import okhttp3.MultipartBody;
+import okhttp3.RequestBody;
+import okhttp3.ResponseBody;
 import retrofit2.Call;
 import retrofit2.http.Body;
 import retrofit2.http.GET;
+import retrofit2.http.Multipart;
 import retrofit2.http.POST;
+import retrofit2.http.Part;
 import retrofit2.http.Path;
 import retrofit2.http.Query;
+import retrofit2.http.Streaming;
 
 public interface ApiService {
 
@@ -30,6 +37,26 @@ public interface ApiService {
 
     @GET("/api/messages/{senderId}/{recipientId}")
     Call<List<ChatMessage>> getChatMessages(@Path("senderId") String senderId, @Path("recipientId") String recipientId);
+
+    // ── File and media transfer endpoints ──────────────────────────────────
+
+    @Multipart
+    @POST("/api/files/upload")
+    Call<MediaFileDto> uploadFile(
+            @Part MultipartBody.Part file,
+            @Part("recipientId") RequestBody recipientId,
+            @Part("fileType") RequestBody fileType,
+            @Part("originalFileName") RequestBody originalFileName,
+            @Part("senderEncryptedAesKey") RequestBody senderEncryptedAesKey,
+            @Part("recipientEncryptedAesKey") RequestBody recipientEncryptedAesKey
+    );
+
+    @GET("/api/files/{id}/metadata")
+    Call<MediaFileDto> getFileMetadata(@Path("id") String mediaFileId);
+
+    @Streaming
+    @GET("/api/files/{id}/download")
+    Call<ResponseBody> downloadFile(@Path("id") String mediaFileId);
 
     // ── Friend request endpoints ──────────────────────────────────────────
 
