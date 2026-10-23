@@ -6,6 +6,8 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
@@ -18,10 +20,10 @@ import java.util.List;
 /**
  * HTTP JWT filter for REST endpoints.
  * Reads "Authorization: Bearer <token>", validates it, and populates the SecurityContext.
- * WebSocket STOMP frames are authenticated separately via JwtChannelInterceptor.
  */
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class JwtFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
@@ -41,12 +43,19 @@ public class JwtFilter extends OncePerRequestFilter {
                 if (SecurityContextHolder.getContext().getAuthentication() == null) {
                     userRepository.findByUsername(username).ifPresent(user -> {
                         var auth = new UsernamePasswordAuthenticationToken(
-                                user.getUsername(), null, List.of());
+                                user.getUsername(), null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
                         auth.setDetails(new WebAuthenticationDetailsSource()
                                 .buildDetails(request));
                         SecurityContextHolder.getContext().setAuthentication(auth);
+                        log.debug("Authenticated user {} for URI {}", username, request.getRequestURI());
                     });
                 }
+            } else {
+                log.warn("Invalid or expired JWT token for URI {}", request.getRequestURI());
+            }
+        } else {
+            if (request.getRequestURI().startsWith("/api/files")) {
+                log.warn("No Authorization header provided for protected URI {}", request.getRequestURI());
             }
         }
         filterChain.doFilter(request, response);

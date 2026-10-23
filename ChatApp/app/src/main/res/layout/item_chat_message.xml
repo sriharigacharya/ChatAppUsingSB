@@ -16,17 +16,37 @@
         android:maxWidth="280dp"
         android:background="@drawable/bg_msg_received">
 
-        <!-- Image attachment preview -->
-        <ImageView
-            android:id="@+id/ivImage"
+        <!-- Image attachment preview with progress overlay -->
+        <FrameLayout
+            android:id="@+id/flImageContainer"
             android:layout_width="240dp"
             android:layout_height="180dp"
-            android:scaleType="centerCrop"
-            android:adjustViewBounds="true"
             android:visibility="gone"
-            android:layout_marginBottom="4dp"
-            android:background="#1E293B"
-            android:contentDescription="Encrypted Image" />
+            android:layout_marginBottom="4dp">
+
+            <ImageView
+                android:id="@+id/ivImage"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="centerCrop"
+                android:background="#1E293B"
+                android:contentDescription="Encrypted Image" />
+
+            <FrameLayout
+                android:id="@+id/flImageProgressOverlay"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="#88000000"
+                android:visibility="gone">
+
+                <ProgressBar
+                    android:id="@+id/pbImageProgress"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_gravity="center"
+                    android:indeterminate="true" />
+            </FrameLayout>
+        </FrameLayout>
 
         <!-- File attachment card -->
         <LinearLayout

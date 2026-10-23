@@ -165,12 +165,22 @@ public class ChatActivity extends AppCompatActivity implements WebSocketManager.
         final String finalFileName = fileName;
         final long finalFileSize = fileSize;
         final String fileType = isImage ? "IMAGE" : "FILE";
+        final String clientMessageId = UUID.randomUUID().toString();
 
-        Toast.makeText(this, "Encrypting and uploading " + fileName + "...", Toast.LENGTH_SHORT).show();
+        // 1. Instantly create and display optimistic message with rotating progress bar
+        ChatMessage optimisticMsg = new ChatMessage(currentUserId, recipientId, isImage ? "[Image]" : "[File]");
+        optimisticMsg.setMessageType(fileType);
+        optimisticMsg.setFileName(finalFileName);
+        optimisticMsg.setFileSize(finalFileSize);
+        optimisticMsg.setClientMessageId(clientMessageId);
+        optimisticMsg.setUploading(true);
+
+        chatAdapter.addMessage(optimisticMsg);
+        binding.rvMessages.scrollToPosition(chatAdapter.getItemCount() - 1);
 
         Executors.newSingleThreadExecutor().execute(() -> {
             try {
-                // 1. Copy URI to temporary plain file
+                // 2. Copy URI to temporary plain file
                 File cacheDir = getCacheDir();
                 File plainFile = new File(cacheDir, "plain_" + UUID.randomUUID().toString() + "_" + finalFileName);
                 try (InputStream in = getContentResolver().openInputStream(uri);
@@ -182,18 +192,24 @@ public class ChatActivity extends AppCompatActivity implements WebSocketManager.
                     }
                 }
 
-                // 2. Generate random 256-bit AES file key
+                // If image, attach local path so preview renders under spinner immediately
+                if (isImage) {
+                    optimisticMsg.setLocalFilePath(plainFile.getAbsolutePath());
+                    mainHandler.post(() -> chatAdapter.updateMessage(optimisticMsg));
+                }
+
+                // 3. Generate random 256-bit AES file key
                 byte[] fileKey = cryptoManager.generateFileKey();
 
-                // 3. Wrap file key for recipient and sender with RSA
+                // 4. Wrap file key for recipient and sender with RSA
                 String recipientEncAesKey = cryptoManager.wrapKeyForUser(fileKey, recipientPublicKey);
                 String senderEncAesKey = cryptoManager.wrapKeyForUser(fileKey, cryptoManager.getPublicKeyBase64());
 
-                // 4. Stream-encrypt plainFile to cipherFile using Tink
+                // 5. Stream-encrypt plainFile to cipherFile using Tink
                 File cipherFile = new File(cacheDir, "enc_" + UUID.randomUUID().toString());
                 cryptoManager.encryptFile(plainFile, cipherFile, fileKey);
 
-                // 5. Upload ciphertext to backend
+                // 6. Upload ciphertext to backend
                 RequestBody fileBody = RequestBody.create(
                         MediaType.parse("application/octet-stream"), cipherFile);
                 MultipartBody.Part filePart = MultipartBody.Part.createFormData(
@@ -218,29 +234,27 @@ public class ChatActivity extends AppCompatActivity implements WebSocketManager.
                 if (response.isSuccessful() && response.body() != null) {
                     MediaFileDto uploaded = response.body();
                     String mediaFileId = uploaded.getId();
-                    String clientMessageId = UUID.randomUUID().toString();
 
-                    // 6. Send STOMP chat message referencing mediaFileId
-                    ChatMessage stompMsg = new ChatMessage(currentUserId, recipientId, isImage ? "[Image]" : "[File]");
-                    stompMsg.setMessageType(fileType);
-                    stompMsg.setMediaFileId(mediaFileId);
-                    stompMsg.setFileName(finalFileName);
-                    stompMsg.setFileSize(finalFileSize);
-                    stompMsg.setClientMessageId(clientMessageId);
+                    // 7. Update message: clear uploading state and assign mediaFileId
+                    optimisticMsg.setMediaFileId(mediaFileId);
+                    optimisticMsg.setLocalFilePath(plainFile.getAbsolutePath());
+                    optimisticMsg.setUploading(false);
 
-                    String json = gson.toJson(stompMsg);
+                    // 8. Send STOMP chat message referencing mediaFileId
+                    String json = gson.toJson(optimisticMsg);
                     WebSocketManager.getInstance().send("/app/chat", json);
 
-                    // 7. Update UI optimistically with local file path
+                    // 9. Update UI: dismiss rotating progress bar!
                     mainHandler.post(() -> {
-                        stompMsg.setLocalFilePath(plainFile.getAbsolutePath());
-                        chatAdapter.addMessage(stompMsg);
-                        binding.rvMessages.scrollToPosition(chatAdapter.getItemCount() - 1);
-                        Toast.makeText(ChatActivity.this, "Sent successfully", Toast.LENGTH_SHORT).show();
+                        chatAdapter.updateMessage(optimisticMsg);
                     });
                 } else {
-                    mainHandler.post(() -> Toast.makeText(ChatActivity.this,
-                            "Upload failed: " + response.code(), Toast.LENGTH_SHORT).show());
+                    optimisticMsg.setUploading(false);
+                    optimisticMsg.setUploadFailed(true);
+                    mainHandler.post(() -> {
+                        chatAdapter.updateMessage(optimisticMsg);
+                        Toast.makeText(ChatActivity.this, "Upload failed: " + response.code(), Toast.LENGTH_SHORT).show();
+                    });
                 }
 
                 // Clean up temporary cipher file
@@ -248,8 +262,12 @@ public class ChatActivity extends AppCompatActivity implements WebSocketManager.
 
             } catch (Exception e) {
                 Log.e(TAG, "File encryption/upload failed", e);
-                mainHandler.post(() -> Toast.makeText(ChatActivity.this,
-                        "Transfer failed: " + e.getMessage(), Toast.LENGTH_LONG).show());
+                optimisticMsg.setUploading(false);
+                optimisticMsg.setUploadFailed(true);
+                mainHandler.post(() -> {
+                    chatAdapter.updateMessage(optimisticMsg);
+                    Toast.makeText(ChatActivity.this, "Transfer failed: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                });
             }
         });
     }

@@ -16,6 +16,8 @@ public class ChatMessage {
 
     // Local transient state for decrypted file path on device
     private transient String localFilePath;
+    private transient boolean isUploading;
+    private transient boolean uploadFailed;
 
     public ChatMessage() {
         this.messageType = "TEXT";
@@ -79,4 +81,10 @@ public class ChatMessage {
 
     public String getLocalFilePath() { return localFilePath; }
     public void setLocalFilePath(String localFilePath) { this.localFilePath = localFilePath; }
+
+    public boolean isUploading() { return isUploading; }
+    public void setUploading(boolean uploading) { isUploading = uploading; }
+
+    public boolean isUploadFailed() { return uploadFailed; }
+    public void setUploadFailed(boolean uploadFailed) { this.uploadFailed = uploadFailed; }
 }

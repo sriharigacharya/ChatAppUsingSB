@@ -3,6 +3,7 @@ package com.example.chatapp.ui;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
@@ -48,8 +49,14 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ChatViewHolder
 
     public void updateMessage(ChatMessage message) {
         for (int i = 0; i < messages.size(); i++) {
-            if (messages.get(i).getId() != null && messages.get(i).getId().equals(message.getId()) ||
-                (messages.get(i).getClientMessageId() != null && messages.get(i).getClientMessageId().equals(message.getClientMessageId()))) {
+            ChatMessage existing = messages.get(i);
+            boolean match = false;
+            if (message.getClientMessageId() != null && message.getClientMessageId().equals(existing.getClientMessageId())) {
+                match = true;
+            } else if (message.getId() != null && message.getId().equals(existing.getId())) {
+                match = true;
+            }
+            if (match) {
                 messages.set(i, message);
                 notifyItemChanged(i);
                 return;
@@ -76,7 +83,10 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ChatViewHolder
 
     class ChatViewHolder extends RecyclerView.ViewHolder {
         LinearLayout llMessageContainer;
+        FrameLayout flImageContainer;
         ImageView ivImage;
+        FrameLayout flImageProgressOverlay;
+        ProgressBar pbImageProgress;
         LinearLayout llFileContainer;
         TextView tvFileName;
         TextView tvFileSize;
@@ -88,7 +98,10 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ChatViewHolder
         public ChatViewHolder(@NonNull View itemView) {
             super(itemView);
             llMessageContainer = itemView.findViewById(R.id.llMessageContainer);
+            flImageContainer = itemView.findViewById(R.id.flImageContainer);
             ivImage = itemView.findViewById(R.id.ivImage);
+            flImageProgressOverlay = itemView.findViewById(R.id.flImageProgressOverlay);
+            pbImageProgress = itemView.findViewById(R.id.pbImageProgress);
             llFileContainer = itemView.findViewById(R.id.llFileContainer);
             tvFileName = itemView.findViewById(R.id.tvFileName);
             tvFileSize = itemView.findViewById(R.id.tvFileSize);
@@ -119,7 +132,7 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ChatViewHolder
 
             // Handle IMAGE messages
             if (message.isImage()) {
-                ivImage.setVisibility(View.VISIBLE);
+                flImageContainer.setVisibility(View.VISIBLE);
                 llFileContainer.setVisibility(View.GONE);
 
                 if (message.getLocalFilePath() != null && new File(message.getLocalFilePath()).exists()) {
@@ -130,8 +143,17 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ChatViewHolder
                     ivImage.setImageResource(R.drawable.ic_file_document);
                 }
 
-                ivImage.setOnClickListener(v -> {
-                    if (mediaClickListener != null) mediaClickListener.onMediaClick(message);
+                // Show rotating progress bar overlay when uploading
+                if (message.isUploading()) {
+                    flImageProgressOverlay.setVisibility(View.VISIBLE);
+                } else {
+                    flImageProgressOverlay.setVisibility(View.GONE);
+                }
+
+                flImageContainer.setOnClickListener(v -> {
+                    if (!message.isUploading() && mediaClickListener != null) {
+                        mediaClickListener.onMediaClick(message);
+                    }
                 });
 
                 if (message.getContent() != null && !message.getContent().isEmpty() &&
@@ -144,20 +166,32 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ChatViewHolder
             }
             // Handle FILE messages
             else if (message.isFile()) {
-                ivImage.setVisibility(View.GONE);
+                flImageContainer.setVisibility(View.GONE);
                 llFileContainer.setVisibility(View.VISIBLE);
                 tvMessageContent.setVisibility(View.GONE);
 
                 tvFileName.setText(message.getFileName() != null ? message.getFileName() : "Document");
-                tvFileSize.setText(formatFileSize(message.getFileSize()));
+
+                // Show rotating progress bar when uploading
+                if (message.isUploading()) {
+                    pbFileProgress.setVisibility(View.VISIBLE);
+                    btnDownload.setVisibility(View.GONE);
+                    tvFileSize.setText("Sending...");
+                } else {
+                    pbFileProgress.setVisibility(View.GONE);
+                    btnDownload.setVisibility(View.VISIBLE);
+                    tvFileSize.setText(formatFileSize(message.getFileSize()));
+                }
 
                 llFileContainer.setOnClickListener(v -> {
-                    if (mediaClickListener != null) mediaClickListener.onMediaClick(message);
+                    if (!message.isUploading() && mediaClickListener != null) {
+                        mediaClickListener.onMediaClick(message);
+                    }
                 });
             }
             // Handle TEXT messages
             else {
-                ivImage.setVisibility(View.GONE);
+                flImageContainer.setVisibility(View.GONE);
                 llFileContainer.setVisibility(View.GONE);
                 tvMessageContent.setVisibility(View.VISIBLE);
                 tvMessageContent.setText(message.getContent());

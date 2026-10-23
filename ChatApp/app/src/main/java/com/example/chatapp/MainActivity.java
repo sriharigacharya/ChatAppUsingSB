@@ -56,7 +56,8 @@ public class MainActivity extends AppCompatActivity {
         }
 
         sessionManager = new SessionManager(this);
-        if (sessionManager.getUserId() == null) {
+        if (sessionManager.getUserId() == null || sessionManager.fetchAuthToken() == null) {
+            sessionManager.clearSession();
             startActivity(new Intent(this, LoginActivity.class));
             finish();
             return;
